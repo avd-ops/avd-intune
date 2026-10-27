@@ -1,0 +1,9 @@
+{
+  "@odata.type": "#microsoft.graph.windows10CompliancePolicy",
+  "displayName": "[avd-ops] AVD Session Host Compliance Policy",
+  "defenderEnabled": true,
+  "antivirusRequired": true,
+  "bitLockerEnabled": false,
+  "storageRequireEncryption": true,
+  "secureBootEnabled": true
+}

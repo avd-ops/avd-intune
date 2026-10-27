@@ -1,0 +1,19 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JSON templates, schemas and leak rules
+        run: python3 scripts/validate.py
+      - name: ShellCheck
+        run: shellcheck scripts/*.sh
