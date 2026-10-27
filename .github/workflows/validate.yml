@@ -15,5 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate JSON templates, schemas and leak rules
         run: python3 scripts/validate.py
+      - name: Run offline unit tests
+        run: python3 -m unittest discover -s tests -v
       - name: ShellCheck
         run: shellcheck scripts/*.sh

@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+intune-manifest.json
+intune-run-manifest.json
+entra-manifest.json
