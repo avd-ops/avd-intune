@@ -1,0 +1,22 @@
+{
+  "name": "[avd-ops] AVD Multi-Session Host Baseline (RDP Shortpath, MMR, Session Limits)",
+  "description": "Declarative Settings Catalog baseline for Azure Virtual Desktop Windows Enterprise multi-session hosts.",
+  "platforms": "windows10",
+  "technologies": "mdm",
+  "settings": [
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_limits_setdisconnectedtimelimit",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_limits_setdisconnectedtimelimit_1",
+      "children": [
+        {
+          "settingId": "disconnectedtimelimit_hours",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_rdpshortpath_enable",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_rdpshortpath_enable_1"
+    }
+  ]
+}

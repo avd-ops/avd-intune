@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avd-ops.dev/contracts/intune-manifest.schema.json",
+  "title": "avd-intune handoff manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "environment",
+    "targetDeviceGroupId",
+    "settingsCatalogProfiles",
+    "compliancePolicyId"
+  ],
+  "properties": {
+    "schema": {
+      "const": "avd-ops-intune-manifest/v1"
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "dev",
+        "test",
+        "prod"
+      ]
+    },
+    "targetDeviceGroupId": {
+      "type": "string"
+    },
+    "settingsCatalogProfiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "compliancePolicyId": {
+      "type": "string"
+    }
+  }
+}
