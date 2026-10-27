@@ -15,8 +15,22 @@
       ]
     },
     {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_limits_setidletimelimit",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_limits_setidletimelimit_1",
+      "children": [
+        {
+          "settingId": "idletimelimit_minutes",
+          "value": 60
+        }
+      ]
+    },
+    {
       "settingId": "device_vendor_msft_policy_config_remotedesktopservices_rdpshortpath_enable",
       "value": "device_vendor_msft_policy_config_remotedesktopservices_rdpshortpath_enable_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_avd_mmr_enable",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_avd_mmr_enable_1"
     }
   ]
 }

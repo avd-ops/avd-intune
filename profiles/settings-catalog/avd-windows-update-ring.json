@@ -1,0 +1,28 @@
+{
+  "name": "[avd-ops] AVD Session Host Windows Update Ring",
+  "description": "Declarative Settings Catalog Windows Update for Business ring for Azure Virtual Desktop multi-session hosts.",
+  "platforms": "windows10",
+  "technologies": "mdm",
+  "settings": [
+    {
+      "settingId": "device_vendor_msft_policy_config_update_allowautoupdate",
+      "value": "device_vendor_msft_policy_config_update_allowautoupdate_2"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_update_deferqualityupdatesperiodindays",
+      "value": 7
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_update_deferfeatureupdatesperiodindays",
+      "value": 30
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_update_activehoursstart",
+      "value": 8
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_update_activehoursend",
+      "value": 18
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "[avd-ops] AVD FSLogix Profile Containers Baseline",
+  "description": "Declarative Settings Catalog baseline for FSLogix Profile Containers on Azure Virtual Desktop multi-session hosts.",
+  "platforms": "windows10",
+  "technologies": "mdm",
+  "settings": [
+    {
+      "settingId": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesenabled",
+      "value": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesenabled_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesvhdlocations",
+      "value": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesvhdlocations_1",
+      "children": [
+        {
+          "settingId": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesvhdlocations_multisz",
+          "value": "\\\\stfslogixcontoso.file.core.windows.net\\profiles"
+        }
+      ]
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesdeletelocalprofilewhenvhdshouldapply",
+      "value": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesdeletelocalprofilewhenvhdshouldapply_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesflipflopprofiledirectoryname",
+      "value": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesflipflopprofiledirectoryname_1"
+    }
+  ]
+}
