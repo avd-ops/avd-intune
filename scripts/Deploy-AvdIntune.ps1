@@ -6,6 +6,8 @@ param(
     [Parameter()][string]$RunManifestPath = './intune-run-manifest.json',
     [Parameter()][string]$ProfilesDirectory = '',
     [Parameter()][string]$Prefix = '',
+    [Parameter()][switch]$DeployAssignmentFilters,
+    [Parameter()][switch]$IncludeWin365,
     [Parameter()][switch]$DryRun,
     [Parameter()][scriptblock]$GraphInvoker
 )
@@ -317,6 +319,55 @@ if ($complianceFiles.Count -eq 0) {
 
 $settingsCatalogPolicyIds = @()
 $runManifestResources = @()
+$assignmentFilterMap = [ordered]@{}
+$useAssignmentFilters = $DeployAssignmentFilters.IsPresent -or $IncludeWin365.IsPresent
+
+# 2b. Optional Platform Assignment Filters deployment (avd-multisession, avd-personal, win365-cloudpc, physical-desktop)
+if ($useAssignmentFilters) {
+    $filtersDir = Join-Path $resolvedProfilesDir 'filters'
+    if (Test-Path -LiteralPath $filtersDir) {
+        $filterFiles = @(Get-ChildItem -Path $filtersDir -Filter '*.json' -File | Sort-Object Name)
+        foreach ($filterFile in $filterFiles) {
+            $filterObj = Get-Content -LiteralPath $filterFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            $stampedFilterName = Get-StampedName -RawName ([string]$filterObj.displayName) -StampPrefix $stampPrefix
+            $filterPayload = [ordered]@{
+                displayName = $stampedFilterName
+                description = [string]$filterObj.description
+                platform    = [string]$filterObj.platform
+                rule        = [string]$filterObj.rule
+            }
+            $escapedFilterName = $stampedFilterName.Replace("'", "''")
+            $filterQueryUri = "https://graph.microsoft.com/beta/deviceManagement/assignmentFilters?`$filter=displayName eq '$escapedFilterName'"
+            $existingFilterResp = Invoke-GraphRequest -Method 'GET' -Uri $filterQueryUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $matchedFilter = $null
+            if ($null -ne $existingFilterResp -and $null -ne $existingFilterResp.PSObject.Properties['value']) {
+                $matchedFilter = @($existingFilterResp.value | Where-Object { $_.displayName -eq $stampedFilterName } | Select-Object -First 1)
+            }
+            $filterCreated = $false
+            $filterId = ''
+            if ($null -ne $matchedFilter -and $matchedFilter.Count -gt 0 -and $null -ne $matchedFilter[0]) {
+                $filterId = [string]$matchedFilter[0].id
+                $patchFilterUri = "https://graph.microsoft.com/beta/deviceManagement/assignmentFilters/$filterId"
+                $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchFilterUri -Body $filterPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+                $filterCreated = $false
+            } else {
+                $postFilterUri = 'https://graph.microsoft.com/beta/deviceManagement/assignmentFilters'
+                $createdFilter = Invoke-GraphRequest -Method 'POST' -Uri $postFilterUri -Body $filterPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+                $filterId = [string]$createdFilter.id
+                $filterCreated = $true
+            }
+            $assignmentFilterMap[$filterFile.BaseName] = $filterId
+            $runManifestResources += [ordered]@{
+                resourceType = 'assignmentFilter'
+                id           = $filterId
+                displayName  = $stampedFilterName
+                sourceFile   = $filterFile.Name
+                created      = $filterCreated
+                assignedTo   = 'tenant'
+            }
+        }
+    }
+}
 
 # 3. Idempotent Settings Catalog profiles deployment & assignment
 foreach ($profileFile in $settingsCatalogFiles) {
@@ -347,13 +398,18 @@ foreach ($profileFile in $settingsCatalogFiles) {
         $wasCreated = $true
     }
 
+    $targetSpec = [ordered]@{
+        '@odata.type' = '#microsoft.graph.groupAssignmentTarget'
+        groupId       = $targetDeviceGroupId
+    }
+    if ($assignmentFilterMap.Contains('avd-multisession')) {
+        $targetSpec['deviceAndAppManagementAssignmentFilterId'] = [string]$assignmentFilterMap['avd-multisession']
+        $targetSpec['deviceAndAppManagementAssignmentFilterType'] = 'include'
+    }
     $assignPayload = [ordered]@{
         assignments = @(
             [ordered]@{
-                target = [ordered]@{
-                    '@odata.type' = '#microsoft.graph.groupAssignmentTarget'
-                    groupId       = $targetDeviceGroupId
-                }
+                target = $targetSpec
             }
         )
     }
@@ -406,13 +462,18 @@ foreach ($compFile in $complianceFiles) {
         $wasCreated = $true
     }
 
+    $targetSpec = [ordered]@{
+        '@odata.type' = '#microsoft.graph.groupAssignmentTarget'
+        groupId       = $targetDeviceGroupId
+    }
+    if ($assignmentFilterMap.Contains('avd-multisession')) {
+        $targetSpec['deviceAndAppManagementAssignmentFilterId'] = [string]$assignmentFilterMap['avd-multisession']
+        $targetSpec['deviceAndAppManagementAssignmentFilterType'] = 'include'
+    }
     $assignPayload = [ordered]@{
         assignments = @(
             [ordered]@{
-                target = [ordered]@{
-                    '@odata.type' = '#microsoft.graph.groupAssignmentTarget'
-                    groupId       = $targetDeviceGroupId
-                }
+                target = $targetSpec
             }
         )
     }
@@ -427,6 +488,123 @@ foreach ($compFile in $complianceFiles) {
         sourceFile   = $compFile.Name
         created      = $wasCreated
         assignedTo   = $targetDeviceGroupId
+    }
+}
+
+# 4b. Optional Windows 365 Cloud PC Provisioning Policies, User Settings, and ANC Health Check (-IncludeWin365)
+$win365ProvisioningPolicyIds = @()
+$win365UserSettingsIds = @()
+if ($IncludeWin365.IsPresent) {
+    $win365UsersGroupId = if ($null -ne $entraManifest.groups.PSObject.Properties['win365UsersGroupId'] -and -not [string]::IsNullOrWhiteSpace([string]$entraManifest.groups.win365UsersGroupId)) {
+        [string]$entraManifest.groups.win365UsersGroupId
+    } else {
+        $avdUsersGroupId
+    }
+
+    $ancResp = Invoke-GraphRequest -Method 'GET' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/onPremisesConnections' -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+    if ($null -ne $ancResp -and $null -ne $ancResp.PSObject.Properties['value']) {
+        foreach ($anc in $ancResp.value) {
+            if ($null -ne $anc.PSObject.Properties['healthCheckStatus'] -and $anc.healthCheckStatus -eq 'failed') {
+                throw "Windows 365 Azure Network Connection (ANC) '$($anc.displayName)' ($($anc.id)) has healthCheckStatus='failed'."
+            }
+        }
+    }
+
+    $win365Dir = Join-Path $resolvedProfilesDir 'win365'
+    $provFile = Join-Path $win365Dir 'provisioning-policy.json'
+    if (Test-Path -LiteralPath $provFile) {
+        $provObj = Get-Content -LiteralPath $provFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        $stampedProvName = Get-StampedName -RawName ([string]$provObj.displayName) -StampPrefix $stampPrefix
+        $provPayload = [ordered]@{}
+        foreach ($prop in $provObj.PSObject.Properties) {
+            $provPayload[$prop.Name] = $prop.Value
+        }
+        $provPayload['displayName'] = $stampedProvName
+
+        $existingProvResp = Invoke-GraphRequest -Method 'GET' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies' -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $matchedProv = $null
+        if ($null -ne $existingProvResp -and $null -ne $existingProvResp.PSObject.Properties['value']) {
+            $matchedProv = @($existingProvResp.value | Where-Object { $_.displayName -eq $stampedProvName } | Select-Object -First 1)
+        }
+        $provCreated = $false
+        $provId = ''
+        if ($null -ne $matchedProv -and $matchedProv.Count -gt 0 -and $null -ne $matchedProv[0]) {
+            $provId = [string]$matchedProv[0].id
+            $null = Invoke-GraphRequest -Method 'PATCH' -Uri "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies/$provId" -Body $provPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $provCreated = $false
+        } else {
+            $createdProv = Invoke-GraphRequest -Method 'POST' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies' -Body $provPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $provId = [string]$createdProv.id
+            $provCreated = $true
+        }
+        $provAssignPayload = [ordered]@{
+            assignments = @(
+                [ordered]@{
+                    target = [ordered]@{
+                        '@odata.type' = '#microsoft.graph.cloudPcManagementGroupAssignmentTarget'
+                        groupId       = $win365UsersGroupId
+                    }
+                }
+            )
+        }
+        $null = Invoke-GraphRequest -Method 'POST' -Uri "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies/$provId/assign" -Body $provAssignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $win365ProvisioningPolicyIds += $provId
+        $runManifestResources += [ordered]@{
+            resourceType = 'cloudPcProvisioningPolicy'
+            id           = $provId
+            displayName  = $stampedProvName
+            sourceFile   = 'provisioning-policy.json'
+            created      = $provCreated
+            assignedTo   = $win365UsersGroupId
+        }
+    }
+
+    $userSettingFile = Join-Path $win365Dir 'user-setting.json'
+    if (Test-Path -LiteralPath $userSettingFile) {
+        $usObj = Get-Content -LiteralPath $userSettingFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        $stampedUsName = Get-StampedName -RawName ([string]$usObj.displayName) -StampPrefix $stampPrefix
+        $usPayload = [ordered]@{}
+        foreach ($prop in $usObj.PSObject.Properties) {
+            $usPayload[$prop.Name] = $prop.Value
+        }
+        $usPayload['displayName'] = $stampedUsName
+
+        $existingUsResp = Invoke-GraphRequest -Method 'GET' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/userSettings' -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $matchedUs = $null
+        if ($null -ne $existingUsResp -and $null -ne $existingUsResp.PSObject.Properties['value']) {
+            $matchedUs = @($existingUsResp.value | Where-Object { $_.displayName -eq $stampedUsName } | Select-Object -First 1)
+        }
+        $usCreated = $false
+        $usId = ''
+        if ($null -ne $matchedUs -and $matchedUs.Count -gt 0 -and $null -ne $matchedUs[0]) {
+            $usId = [string]$matchedUs[0].id
+            $null = Invoke-GraphRequest -Method 'PATCH' -Uri "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/userSettings/$usId" -Body $usPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $usCreated = $false
+        } else {
+            $createdUs = Invoke-GraphRequest -Method 'POST' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/userSettings' -Body $usPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $usId = [string]$createdUs.id
+            $usCreated = $true
+        }
+        $usAssignPayload = [ordered]@{
+            assignments = @(
+                [ordered]@{
+                    target = [ordered]@{
+                        '@odata.type' = '#microsoft.graph.cloudPcManagementGroupAssignmentTarget'
+                        groupId       = $win365UsersGroupId
+                    }
+                }
+            )
+        }
+        $null = Invoke-GraphRequest -Method 'POST' -Uri "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/userSettings/$usId/assign" -Body $usAssignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $win365UserSettingsIds += $usId
+        $runManifestResources += [ordered]@{
+            resourceType = 'cloudPcUserSetting'
+            id           = $usId
+            displayName  = $stampedUsName
+            sourceFile   = 'user-setting.json'
+            created      = $usCreated
+            assignedTo   = $win365UsersGroupId
+        }
     }
 }
 
@@ -452,6 +630,15 @@ $handoffManifest = [ordered]@{
     targetDeviceGroupId     = $targetDeviceGroupId
     settingsCatalogProfiles = @($settingsCatalogPolicyIds)
     compliancePolicyId      = [string]$compliancePolicyIds[0]
+}
+if ($assignmentFilterMap.Count -gt 0) {
+    $handoffManifest['assignmentFilters'] = $assignmentFilterMap
+}
+if ($IncludeWin365.IsPresent) {
+    $handoffManifest['win365'] = [ordered]@{
+        provisioningPolicyIds = @($win365ProvisioningPolicyIds)
+        userSettingsIds       = @($win365UserSettingsIds)
+    }
 }
 
 $handoffJson = $handoffManifest | ConvertTo-Json -Depth 10

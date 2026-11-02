@@ -1,0 +1,6 @@
+{
+  "displayName": "[avd-ops] AVD Personal Hosts",
+  "description": "Targets dedicated AVD personal session hosts.",
+  "platform": "windows10AndLater",
+  "rule": "(device.operatingSystemSKU -in [\"Enterprise\", \"EnterpriseN\"]) and (device.deviceName -startsWith \"avd-\")"
+}

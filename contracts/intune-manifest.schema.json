@@ -34,6 +34,34 @@
     },
     "compliancePolicyId": {
       "type": "string"
+    },
+    "assignmentFilters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "win365": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provisioningPolicyIds",
+        "userSettingsIds"
+      ],
+      "properties": {
+        "provisioningPolicyIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "userSettingsIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   }
 }

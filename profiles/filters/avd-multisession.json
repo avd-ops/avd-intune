@@ -1,0 +1,6 @@
+{
+  "displayName": "[avd-ops] AVD Multi-Session Hosts",
+  "description": "Targets Windows Enterprise multi-session session hosts.",
+  "platform": "windows10AndLater",
+  "rule": "(device.operatingSystemSKU -eq \"ServerRdsh\")"
+}

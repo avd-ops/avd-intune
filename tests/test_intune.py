@@ -438,6 +438,53 @@ $summary = & '{SCRIPTS_DIR / "Remove-AvdIntune.ps1"}' `
             )
             self.assertEqual(len(teardown_data["deletedUris"]), 2)
 
+    def test_deploy_with_assignment_filters_and_win365(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            entra_path = tmp_path / "entra-manifest.json"
+            intune_path = tmp_path / "intune-manifest.json"
+            run_path = tmp_path / "intune-run-manifest.json"
+
+            entra_path.write_text(json.dumps(SAMPLE_ENTRA_MANIFEST), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    "pwsh",
+                    "-NoProfile",
+                    "-File",
+                    str(SCRIPTS_DIR / "Deploy-AvdIntune.ps1"),
+                    "-EntraManifestPath",
+                    str(entra_path),
+                    "-OutputPath",
+                    str(intune_path),
+                    "-RunManifestPath",
+                    str(run_path),
+                    "-DeployAssignmentFilters",
+                    "-IncludeWin365",
+                    "-DryRun",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, f"Deploy-AvdIntune.ps1 -IncludeWin365 failed:\n{proc.stderr}\n{proc.stdout}")
+            intune_manifest = json.loads(intune_path.read_text(encoding="utf-8"))
+            self.assertIn("assignmentFilters", intune_manifest)
+            self.assertEqual(
+                set(intune_manifest["assignmentFilters"].keys()),
+                {"avd-multisession", "avd-personal", "win365-cloudpc", "physical-desktop"},
+            )
+            self.assertIn("win365", intune_manifest)
+            self.assertEqual(len(intune_manifest["win365"]["provisioningPolicyIds"]), 1)
+            self.assertEqual(len(intune_manifest["win365"]["userSettingsIds"]), 1)
+
+            run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(run_manifest["resources"]), 10)
+            resource_types = [r["resourceType"] for r in run_manifest["resources"]]
+            self.assertEqual(resource_types.count("assignmentFilter"), 4)
+            self.assertEqual(resource_types.count("cloudPcProvisioningPolicy"), 1)
+            self.assertEqual(resource_types.count("cloudPcUserSetting"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,19 @@
+{
+  "displayName": "[avd-ops] Windows 365 Enterprise Baseline",
+  "description": "Declarative Windows 365 Cloud PC provisioning policy with Microsoft Entra single sign-on.",
+  "cloudPcNamingTemplate": "CPC-%USERNAME:5%-%RAND:5%",
+  "imageType": "gallery",
+  "imageId": "microsoftwindowsdesktop_windows-ent-cpc_win11-24h2-ent-cpc-m365",
+  "enableSingleSignOn": true,
+  "domainJoinConfigurations": [
+    {
+      "domainJoinType": "azureAdJoin",
+      "regionGroup": "usCentral",
+      "regionName": "automatic"
+    }
+  ],
+  "microsoftManagedDesktop": {
+    "managedType": "notManaged",
+    "profile": ""
+  }
+}

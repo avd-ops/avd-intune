@@ -72,6 +72,28 @@ def validate_intune_manifest(data: Any, label: str, schema: dict[str, Any]) -> l
         if not isinstance(data["compliancePolicyId"], str) or not data["compliancePolicyId"].strip():
             errs.append(f"{label}: 'compliancePolicyId' must be a non-empty string")
 
+    if "assignmentFilters" in data:
+        af = data["assignmentFilters"]
+        if not isinstance(af, dict):
+            errs.append(f"{label}: 'assignmentFilters' must be a JSON object")
+        else:
+            for fk, fv in af.items():
+                if not isinstance(fv, str) or not fv.strip():
+                    errs.append(f"{label}: 'assignmentFilters.{fk}' must be a non-empty string")
+
+    if "win365" in data:
+        w365 = data["win365"]
+        if not isinstance(w365, dict):
+            errs.append(f"{label}: 'win365' must be a JSON object")
+        else:
+            for req_w in ("provisioningPolicyIds", "userSettingsIds"):
+                if req_w not in w365:
+                    errs.append(f"{label}: missing required field 'win365.{req_w}'")
+                elif not isinstance(w365[req_w], list) or not all(
+                    isinstance(x, str) and x.strip() for x in w365[req_w]
+                ):
+                    errs.append(f"{label}: 'win365.{req_w}' must be an array of non-empty strings")
+
     return errs
 
 
@@ -111,6 +133,40 @@ def validate_compliance_profile(data: Any, rel_path: Path) -> list[str]:
     display_name = data.get("displayName")
     if not isinstance(display_name, str) or not display_name.startswith("[avd-ops]"):
         errs.append(f"{rel_path}: 'displayName' must be a string starting with '[avd-ops]'")
+    return errs
+
+
+def validate_assignment_filter(data: Any, rel_path: Path) -> list[str]:
+    """Validate a platform assignment filter template."""
+    errs: list[str] = []
+    if not isinstance(data, dict):
+        return [f"{rel_path}: filter root must be an object"]
+    for req in ("displayName", "description", "platform", "rule"):
+        if req not in data:
+            errs.append(f"{rel_path}: missing required key '{req}'")
+    display_name = data.get("displayName")
+    if not isinstance(display_name, str) or not display_name.startswith("[avd-ops]"):
+        errs.append(f"{rel_path}: 'displayName' must be a string starting with '[avd-ops]'")
+    if data.get("platform") != "windows10AndLater":
+        errs.append(f"{rel_path}: 'platform' must be 'windows10AndLater'")
+    rule = data.get("rule")
+    if not isinstance(rule, str) or not rule.strip():
+        errs.append(f"{rel_path}: 'rule' must be a non-empty string")
+    return errs
+
+
+def validate_win365_profile(data: Any, rel_path: Path) -> list[str]:
+    """Validate a Windows 365 provisioning policy or user setting template."""
+    errs: list[str] = []
+    if not isinstance(data, dict):
+        return [f"{rel_path}: Windows 365 profile root must be an object"]
+    display_name = data.get("displayName")
+    if not isinstance(display_name, str) or not display_name.startswith("[avd-ops]"):
+        errs.append(f"{rel_path}: 'displayName' must be a string starting with '[avd-ops]'")
+    if "enableSingleSignOn" in data and data.get("enableSingleSignOn") is not True:
+        errs.append(f"{rel_path}: 'enableSingleSignOn' must be True on Windows 365 provisioning policies")
+    if "localAdminEnabled" in data and data.get("localAdminEnabled") is not False:
+        errs.append(f"{rel_path}: 'localAdminEnabled' must be False on Windows 365 user settings")
     return errs
 
 
@@ -154,6 +210,10 @@ def run_validation(manifest_path: Path | None = None) -> list[str]:
             errors.extend(validate_settings_catalog_profile(data, rel))
         elif jf.parent == ROOT / "profiles" / "compliance":
             errors.extend(validate_compliance_profile(data, rel))
+        elif jf.parent == ROOT / "profiles" / "filters":
+            errors.extend(validate_assignment_filter(data, rel))
+        elif jf.parent == ROOT / "profiles" / "win365":
+            errors.extend(validate_win365_profile(data, rel))
 
     for tf in sorted(ROOT.rglob("*")):
         if ".git" in tf.parts or "__pycache__" in tf.parts or not tf.is_file():
