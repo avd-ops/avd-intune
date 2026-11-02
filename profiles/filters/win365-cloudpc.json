@@ -1,0 +1,6 @@
+{
+  "displayName": "[avd-ops] Windows 365 Cloud PCs",
+  "description": "Targets Windows 365 Enterprise and Frontline Cloud PCs.",
+  "platform": "windows10AndLater",
+  "rule": "(device.model -startsWith \"Cloud PC\")"
+}

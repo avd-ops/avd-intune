@@ -1,0 +1,6 @@
+{
+  "displayName": "[avd-ops] Physical Windows Endpoints",
+  "description": "Excludes AVD multi-session hosts and Windows 365 Cloud PCs.",
+  "platform": "windows10AndLater",
+  "rule": "(device.operatingSystemSKU -ne \"ServerRdsh\") and not (device.model -startsWith \"Cloud PC\")"
+}

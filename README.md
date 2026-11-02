@@ -12,19 +12,21 @@ Part of [avd-ops](https://avd-ops.dev/), the open toolkit for Azure Virtual Desk
 
 ## Role in avd-ops
 
-Session-host MDM enrollment and endpoint configuration control plane (`avd-intune`), orchestrated by [avd-landing-zone](https://github.com/avd-ops/avd-landing-zone) ([decision 0009](https://avd-ops.dev/docs/decisions/0009-split-landing-zone-into-five-control-planes.html)).
+Desktop DevOps endpoint configuration and Windows 365 Cloud PC control plane (`avd-intune`), orchestrated by [avd-landing-zone](https://github.com/avd-ops/avd-landing-zone) ([decision 0009](https://avd-ops.dev/docs/decisions/0009-split-landing-zone-into-five-control-planes.html), [decision 0012](https://avd-ops.dev/docs/decisions/0012-desktop-devops-for-avd-win365-and-intune.html)).
 
 ## What it does
 
 - Configures Microsoft Intune MDM auto-enrollment scope and Windows Enterprise multi-session enrollment rules.
 - Deploys declarative Settings Catalog profiles for AVD session hosts (FSLogix settings, RDP Shortpath, multimedia redirection, session timeouts, Windows Update rings).
-- Applies session-host device compliance policies paired with `avd-entra` Conditional Access.
-- Assigns core host applications to the dynamic session-host device groups from `avd-entra`.
+- Deploys platform assignment filters (`avd-multisession`, `avd-personal`, `win365-cloudpc`, `physical-desktop`) via `-DeployAssignmentFilters` so multi-session, Cloud PC, and physical device policies stay cleanly separated.
+- Deploys declarative Windows 365 Cloud PC provisioning policies (`enableSingleSignOn: true`) and least-privilege user settings (`localAdminEnabled: false`, 4-hour restore points) via `-IncludeWin365`, and checks Azure Network Connection (`onPremisesConnections`) health.
+- Applies session-host and Cloud PC device compliance policies paired with `avd-entra` Conditional Access.
+- Assigns core host applications to the dynamic session-host and Cloud PC device groups from `avd-entra`.
 - Driven from Azure Cloud Shell (`az rest`, PowerShell 7, Bash and Python) using source-controlled Graph JSON templates.
 
 ## Contracts
 
-Consumes `entra-manifest.json` device and user group targets and produces `intune-manifest.json` (enrolled policy IDs, compliance baseline state, and MDM readiness).
+Consumes `entra-manifest.json` device and user group targets and produces `intune-manifest.json` (enrolled policy IDs, compliance baseline state, optional platform `assignmentFilters`, and optional `win365` provisioning policy and user settings IDs).
 
 ## Contributing
 

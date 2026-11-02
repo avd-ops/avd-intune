@@ -1,0 +1,10 @@
+{
+  "displayName": "[avd-ops] Windows 365 Least-Privilege User Settings",
+  "localAdminEnabled": false,
+  "resetEnabled": true,
+  "restorePointSetting": {
+    "frequencyType": "fourHours",
+    "frequencyInHours": 4,
+    "userRestoreEnabled": true
+  }
+}

@@ -71,6 +71,9 @@ foreach ($res in $runManifest.resources) {
     $deleteUri = switch ($resType) {
         'configurationPolicy' { "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies/$resId" }
         'deviceCompliancePolicy' { "https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies/$resId" }
+        'assignmentFilter' { "https://graph.microsoft.com/beta/deviceManagement/assignmentFilters/$resId" }
+        'cloudPcProvisioningPolicy' { "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies/$resId" }
+        'cloudPcUserSetting' { "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/userSettings/$resId" }
         default { throw "Unsupported resourceType '$resType' in run manifest." }
     }
 
