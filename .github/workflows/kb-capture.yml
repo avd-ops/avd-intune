@@ -1,0 +1,27 @@
+name: kb-capture
+
+# Decision 0011: a pull request that changes code must carry what was learned. It passes when it
+# changes docs/knowledge/, links the lesson with a `KB: <link>` line (repos without their own KB),
+# or has the no-kb label and a "No KB entry: <reason>" line in its body. PRs from the family's own
+# automation are exempt. It reruns when labels or the body change, so no new push is needed.
+# Like kb-validate, it always runs: directives and KB_PAUSED don't pause it.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  kb-capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Code changes carry a KB entry or a reason
+        run: python3 scripts/kb/capture_check.py pr --base "origin/${{ github.base_ref }}"

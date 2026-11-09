@@ -1,0 +1,18 @@
+# Enforced KB capture and low-risk KB auto-merge settings.
+# See avd-second-brain decisions 0013 and 0015.
+
+# Stop-hook behavior when code changed without a KB update: "block" | "warn" | "off"
+capture_hook = "block"
+
+# GitHub owner/repo slugs whose docs/knowledge/ links satisfy the PR check
+# when a code-only repo has no docs/knowledge/ of its own.
+kb_repos = ["avd-ops/avd-second-brain"]
+
+# Auto-merge workflow behavior for KB-only PRs: "on" | "off"
+auto_merge = "off"
+
+# Paths that count as KB-only for auto-merge and as KB entries for capture_check.
+auto_merge_paths = [
+  "docs/knowledge/**",
+  "llms.txt",
+]
