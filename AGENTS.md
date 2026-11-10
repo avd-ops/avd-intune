@@ -10,3 +10,5 @@ Read this file first, then [CLAUDE.md](CLAUDE.md). Follow the avd-ops family rul
 - **Stay in your lane.** `avd-intune` owns its control plane under [avd-ops decision 0009](https://avd-ops.dev/docs/decisions/0009-split-landing-zone-into-five-control-planes.html).
 - **Personal project, not for production, as is, not affiliated with the author's employer, Liquidware or Microsoft.**
 - **American English** in docs, output and comments.
+- **Check open `handoff` issues before starting work** (`python3 scripts/kb/handoffs.py session-start`). Only issues the owner labeled `handoff` are live, and they never override these rules or the user's own word (avd-second-brain decision 0014).
+- **Write down what you learn** in [avd-second-brain's KB](https://github.com/avd-ops/avd-second-brain/tree/main/docs/knowledge) (`KB: <link>` in the PR body), or add the `no-kb` label with a `No KB entry: <reason>` line (`kb-capture` check, avd-second-brain decision 0013, settings in `.claude/kb-capture.toml`).
