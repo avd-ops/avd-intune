@@ -485,6 +485,225 @@ $summary = & '{SCRIPTS_DIR / "Remove-AvdIntune.ps1"}' `
             self.assertEqual(resource_types.count("cloudPcProvisioningPolicy"), 1)
             self.assertEqual(resource_types.count("cloudPcUserSetting"), 1)
 
+    def test_c26_cloud_environments_contract_matches_avd_assess(self) -> None:
+        c26_path = ROOT / "contracts" / "cloud-environments.json"
+        self.assertTrue(c26_path.is_file(), "contracts/cloud-environments.json must exist")
+        c26 = json.loads(c26_path.read_text(encoding="utf-8"))
+        self.assertEqual(c26["schema"], "avd-cloud-environments/v1")
+        self.assertEqual(c26["clouds"]["commercial"]["graphEndpoint"], "https://graph.microsoft.com")
+        self.assertEqual(c26["clouds"]["usgov"]["graphEndpoint"], "https://graph.microsoft.us")
+        self.assertEqual(c26["clouds"]["usgov"]["entraEnvironment"], "USGov")
+        self.assertFalse(c26["clouds"]["usgov"]["capabilities"]["win365MicrosoftHostedNetwork"])
+        self.assertTrue(c26["clouds"]["usgov"]["capabilities"]["win365AzureNetworkConnection"])
+        self.assertFalse(c26["clouds"]["usgov"]["capabilities"]["win365Frontline"])
+
+    def test_usgov_deploy_routes_to_graph_microsoft_us_and_deploys_itar_cui_lockdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            entra_path = tmp_path / "entra-manifest.json"
+            intune_path = tmp_path / "intune-manifest.json"
+            run_path = tmp_path / "intune-run-manifest.json"
+            uris_path = tmp_path / "recorded-uris.json"
+
+            usgov_entra = dict(SAMPLE_ENTRA_MANIFEST, cloud="usgov", complianceProfile="itar-cui")
+            entra_path.write_text(json.dumps(usgov_entra), encoding="utf-8")
+
+            ps_script = tmp_path / "run-usgov.ps1"
+            ps_script.write_text(
+                f"""
+$ErrorActionPreference = 'Stop'
+$uris = [System.Collections.Generic.List[string]]::new()
+$invoker = {{
+    param($Method, $Uri, $Body)
+    $uris.Add($Uri)
+    if ($Method -eq 'GET' -and $Uri -like '*/subscribedSkus*') {{
+        return [pscustomobject]@{{
+            value = @([pscustomobject]@{{
+                skuPartNumber = 'SPE_E5_GOV'
+                capabilityStatus = 'Enabled'
+                servicePlans = @([pscustomobject]@{{
+                    servicePlanName = 'INTUNE_A'
+                    provisioningStatus = 'Success'
+                }})
+            }})
+        }}
+    }}
+    if ($Method -eq 'GET') {{
+        return [pscustomobject]@{{ value = @() }}
+    }}
+    if ($Method -eq 'POST' -and $Uri -notlike '*/assign') {{
+        return [pscustomobject]@{{ id = [guid]::NewGuid().ToString() }}
+    }}
+    return [pscustomobject]@{{ status = 'ok' }}
+}}.GetNewClosure()
+
+& '{SCRIPTS_DIR / "Deploy-AvdIntune.ps1"}' `
+    -EntraManifestPath '{entra_path}' `
+    -OutputPath '{intune_path}' `
+    -RunManifestPath '{run_path}' `
+    -Cloud 'usgov' `
+    -GraphInvoker $invoker
+
+$uris | ConvertTo-Json | Set-Content -LiteralPath '{uris_path}' -Encoding UTF8
+""",
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                ["pwsh", "-NoProfile", "-File", str(ps_script)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, f"USGov deploy failed:\n{proc.stderr}\n{proc.stdout}")
+
+            recorded_uris = json.loads(uris_path.read_text(encoding="utf-8"))
+            self.assertGreater(len(recorded_uris), 0)
+            for uri in recorded_uris:
+                self.assertTrue(
+                    uri.startswith("https://graph.microsoft.us/"),
+                    f"Expected graph.microsoft.us URI in usgov, got {uri}",
+                )
+
+            intune_manifest = json.loads(intune_path.read_text(encoding="utf-8"))
+            self.assertEqual(intune_manifest["cloud"], "usgov")
+            self.assertEqual(intune_manifest["complianceProfile"], "itar-cui")
+            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 4)
+
+            run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
+            self.assertEqual(run_manifest["cloud"], "usgov")
+            self.assertEqual(run_manifest["complianceProfile"], "itar-cui")
+            source_files = [r["sourceFile"] for r in run_manifest["resources"]]
+            self.assertIn("itar-cui-session-lockdown.json", source_files)
+
+    def test_cross_cloud_mismatch_and_win365_gov_anc_enforcement(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            entra_path = tmp_path / "entra-manifest.json"
+            usgov_entra = dict(SAMPLE_ENTRA_MANIFEST, cloud="usgov")
+            entra_path.write_text(json.dumps(usgov_entra), encoding="utf-8")
+
+            # 1. Cross-cloud mismatch between entra-manifest.json (usgov) and -Cloud commercial
+            proc_mismatch = subprocess.run(
+                [
+                    "pwsh",
+                    "-NoProfile",
+                    "-File",
+                    str(SCRIPTS_DIR / "Deploy-AvdIntune.ps1"),
+                    "-EntraManifestPath",
+                    str(entra_path),
+                    "-OutputPath",
+                    str(tmp_path / "out1.json"),
+                    "-RunManifestPath",
+                    str(tmp_path / "run1.json"),
+                    "-Cloud",
+                    "commercial",
+                    "-DryRun",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc_mismatch.returncode, 0)
+            self.assertIn("Cloud boundary mismatch", proc_mismatch.stderr + proc_mismatch.stdout)
+
+            # 2. Win365 in usgov without ANC fails closed
+            proc_no_anc = subprocess.run(
+                [
+                    "pwsh",
+                    "-NoProfile",
+                    "-File",
+                    str(SCRIPTS_DIR / "Deploy-AvdIntune.ps1"),
+                    "-EntraManifestPath",
+                    str(entra_path),
+                    "-OutputPath",
+                    str(tmp_path / "out2.json"),
+                    "-RunManifestPath",
+                    str(tmp_path / "run2.json"),
+                    "-Cloud",
+                    "usgov",
+                    "-IncludeWin365",
+                    "-DryRun",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc_no_anc.returncode, 0)
+            self.assertIn("Azure Network Connection", proc_no_anc.stderr + proc_no_anc.stdout)
+
+            # 3. Win365 in usgov with MHN fails closed
+            proc_mhn = subprocess.run(
+                [
+                    "pwsh",
+                    "-NoProfile",
+                    "-File",
+                    str(SCRIPTS_DIR / "Deploy-AvdIntune.ps1"),
+                    "-EntraManifestPath",
+                    str(entra_path),
+                    "-OutputPath",
+                    str(tmp_path / "out3.json"),
+                    "-RunManifestPath",
+                    str(tmp_path / "run3.json"),
+                    "-Cloud",
+                    "usgov",
+                    "-IncludeWin365",
+                    "-Win365NetworkMode",
+                    "mhn",
+                    "-Win365AncId",
+                    "00000000-0000-0000-0000-000000000999",
+                    "-DryRun",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc_mhn.returncode, 0)
+            self.assertIn("Microsoft Hosted Network (MHN) is not supported", proc_mhn.stderr + proc_mhn.stdout)
+
+            # 4. Win365 in usgov with Frontline Shared fails closed
+            proc_fl = subprocess.run(
+                [
+                    "pwsh",
+                    "-NoProfile",
+                    "-File",
+                    str(SCRIPTS_DIR / "Deploy-AvdIntune.ps1"),
+                    "-EntraManifestPath",
+                    str(entra_path),
+                    "-OutputPath",
+                    str(tmp_path / "out4.json"),
+                    "-RunManifestPath",
+                    str(tmp_path / "run4.json"),
+                    "-Cloud",
+                    "usgov",
+                    "-IncludeWin365",
+                    "-Win365ProvisioningMode",
+                    "frontlineShared",
+                    "-Win365AncId",
+                    "00000000-0000-0000-0000-000000000999",
+                    "-DryRun",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc_fl.returncode, 0)
+            self.assertIn("Frontline", proc_fl.stderr + proc_fl.stdout)
+
+    def test_usgov_cloud_ps1_suite_passes(self) -> None:
+        proc = subprocess.run(
+            ["pwsh", "-NoProfile", "-File", str(ROOT / "tests" / "UsGovCloud.Tests.ps1")],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(
+            proc.returncode,
+            0,
+            f"tests/UsGovCloud.Tests.ps1 failed:\n{proc.stderr}\n{proc.stdout}",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
