@@ -23,6 +23,22 @@
         "prod"
       ]
     },
+    "cloud": {
+      "type": "string",
+      "enum": [
+        "commercial",
+        "usgov"
+      ],
+      "default": "commercial"
+    },
+    "complianceProfile": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "itar-cui"
+      ],
+      "default": "standard"
+    },
     "targetDeviceGroupId": {
       "type": "string"
     },

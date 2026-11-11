@@ -1,0 +1,45 @@
+{
+  "name": "[avd-ops] ITAR-CUI-SessionLockdown",
+  "description": "Declarative ITAR / CUI / FedRAMP High Settings Catalog baseline enforcing FIPS 140 cryptographic mode, TLS 1.2+ minimum, disabled clipboard/printer/drive/PnP/USB redirection, and mandatory screen capture protection and session watermarking.",
+  "platforms": "windows10",
+  "technologies": "mdm",
+  "complianceProfile": "itar-cui",
+  "settings": [
+    {
+      "settingId": "device_vendor_msft_policy_config_localpoliciessecurityoptions_systemcryptography_usefipscompliantalgorithmsforencryptionhashingandsigning",
+      "value": "device_vendor_msft_policy_config_localpoliciessecurityoptions_systemcryptography_usefipscompliantalgorithmsforencryptionhashingandsigning_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_cryptography_tlsversionmin",
+      "value": "device_vendor_msft_policy_config_cryptography_tlsversionmin_tls12"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_clientconnectionredirection_donotallowclipboardredirection",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_clientconnectionredirection_donotallowclipboardredirection_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_printerredirection_donotallowclientprinterredirection",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_printerredirection_donotallowclientprinterredirection_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_deviceredirection_donotallowdriveredirection",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_deviceredirection_donotallowdriveredirection_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_deviceredirection_donotallowsupportedplugandplaydeviceredirection",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_deviceredirection_donotallowsupportedplugandplaydeviceredirection_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_usbredirection_donotallowusbdeviceredirection",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_usbredirection_donotallowusbdeviceredirection_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_avd_fenablescreencaptureprotection",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_avd_enablewatermarking",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_avd_enablewatermarking_1"
+    }
+  ]
+}

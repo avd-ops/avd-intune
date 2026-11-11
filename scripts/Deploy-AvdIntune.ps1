@@ -6,13 +6,74 @@ param(
     [Parameter()][string]$RunManifestPath = './intune-run-manifest.json',
     [Parameter()][string]$ProfilesDirectory = '',
     [Parameter()][string]$Prefix = '',
+    [Parameter()][ValidateSet('commercial', 'usgov')][string]$Cloud = 'commercial',
+    [Parameter()][ValidateSet('standard', 'itar-cui')][string]$ComplianceProfile = '',
     [Parameter()][switch]$DeployAssignmentFilters,
     [Parameter()][switch]$IncludeWin365,
+    [Parameter()][string]$Win365AncId = '',
+    [Parameter()][ValidateSet('anc', 'mhn')][string]$Win365NetworkMode = '',
+    [Parameter()][ValidateSet('enterprise', 'frontlineDedicated', 'frontlineShared')][string]$Win365ProvisioningMode = 'enterprise',
     [Parameter()][switch]$DryRun,
     [Parameter()][scriptblock]$GraphInvoker
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+function Resolve-AvdCloudEnvironment {
+    param(
+        [Parameter(Mandatory)][ValidateSet('commercial', 'usgov')][string]$CloudName
+    )
+    $contractPath = Join-Path $PSScriptRoot '../contracts/cloud-environments.json'
+    if (-not (Test-Path -LiteralPath $contractPath)) {
+        throw "Cloud environments contract (C26) not found at '$contractPath'."
+    }
+    $contract = Get-Content -LiteralPath $contractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($null -ne $contract.PSObject.Properties['clouds'] -and $null -ne $contract.clouds.PSObject.Properties[$CloudName]) {
+        return $contract.clouds.$CloudName
+    }
+    $matched = @($contract.environments | Where-Object { $_.id -eq $CloudName } | Select-Object -First 1)
+    if ($matched.Count -eq 0 -or $null -eq $matched[0]) {
+        throw "Cloud environment '$CloudName' not found in '$contractPath'."
+    }
+    return $matched[0]
+}
+
+function Assert-AvdCloudContextMatch {
+    param(
+        [Parameter(Mandatory)][object]$CloudEnv,
+        [Parameter(Mandatory)][string]$TargetCloud,
+        [Parameter()][bool]$SkipSessionCheck = $false
+    )
+    $getAzCtxCmd = Get-Item -LiteralPath 'Function:Get-AzContext' -ErrorAction SilentlyContinue
+    if ($null -eq $getAzCtxCmd -and -not $SkipSessionCheck -and $null -ne (Get-Module -Name 'Az.Accounts')) {
+        $getAzCtxCmd = Get-Command 'Get-AzContext' -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $getAzCtxCmd) {
+        $azCtx = & $getAzCtxCmd -ErrorAction SilentlyContinue
+        if ($null -ne $azCtx -and $null -ne $azCtx.PSObject.Properties['Environment'] -and $null -ne $azCtx.Environment) {
+            $activeAzEnv = [string]$azCtx.Environment.Name
+            if (-not [string]::IsNullOrWhiteSpace($activeAzEnv) -and $activeAzEnv -ne [string]$CloudEnv.psEnvironmentName) {
+                throw "Cloud boundary mismatch: active Az PowerShell environment is '$activeAzEnv', but target cloud '$TargetCloud' requires '$($CloudEnv.psEnvironmentName)'."
+            }
+        }
+    }
+    $getMgCtxCmd = Get-Item -LiteralPath 'Function:Get-MgContext' -ErrorAction SilentlyContinue
+    if ($null -eq $getMgCtxCmd -and -not $SkipSessionCheck -and $null -ne (Get-Module -Name 'Microsoft.Graph.Authentication')) {
+        $getMgCtxCmd = Get-Command 'Get-MgContext' -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $getMgCtxCmd) {
+        $mgCtx = & $getMgCtxCmd -ErrorAction SilentlyContinue
+        if ($null -ne $mgCtx -and $null -ne $mgCtx.PSObject.Properties['Environment']) {
+            $activeMgEnv = [string]$mgCtx.Environment
+            if (-not [string]::IsNullOrWhiteSpace($activeMgEnv) -and $activeMgEnv -ne [string]$CloudEnv.entraEnvironment) {
+                throw "Cloud boundary mismatch: active MgGraph environment is '$activeMgEnv', but target cloud '$TargetCloud' requires '$($CloudEnv.entraEnvironment)' (Connect-MgGraph -Environment $($CloudEnv.entraEnvironment))."
+            }
+        }
+    }
+    if (Test-Path -LiteralPath 'Alias:Invoke-GraphRequest') {
+        Remove-Item -LiteralPath 'Alias:Invoke-GraphRequest' -Force -ErrorAction SilentlyContinue
+    }
+}
 
 function Get-StampedName {
     param(
@@ -119,7 +180,8 @@ function Invoke-GraphRequest {
         [Parameter(Mandatory)][string]$Uri,
         [Parameter()][object]$Body = $null,
         [Parameter()][bool]$IsDryRun = $false,
-        [Parameter()][scriptblock]$CustomInvoker = $null
+        [Parameter()][scriptblock]$CustomInvoker = $null,
+        [Parameter()][string]$GraphResource = ''
     )
     if ($null -ne $CustomInvoker) {
         return (& $CustomInvoker $Method $Uri $Body)
@@ -176,6 +238,9 @@ function Invoke-GraphRequest {
     }
 
     $azArgs = @('rest', '--method', $Method, '--uri', $Uri)
+    if (-not [string]::IsNullOrWhiteSpace($GraphResource)) {
+        $azArgs += @('--resource', $GraphResource)
+    }
     $tempFile = $null
     try {
         if ($null -ne $Body) {
@@ -235,6 +300,41 @@ if ($environment -notin @('dev', 'test', 'prod')) {
     throw "Invalid or missing environment '$environment' in '$EntraManifestPath'. Expected dev, test, or prod."
 }
 
+$manifestCloud = if ($null -ne $entraManifest.PSObject.Properties['cloud'] -and -not [string]::IsNullOrWhiteSpace([string]$entraManifest.cloud)) {
+    ([string]$entraManifest.cloud).Trim().ToLowerInvariant()
+} else {
+    ''
+}
+$resolvedCloud = if ($PSBoundParameters.ContainsKey('Cloud')) {
+    $Cloud.Trim().ToLowerInvariant()
+} elseif (-not [string]::IsNullOrWhiteSpace($manifestCloud)) {
+    $manifestCloud
+} else {
+    $Cloud.Trim().ToLowerInvariant()
+}
+if (-not [string]::IsNullOrWhiteSpace($manifestCloud) -and $manifestCloud -ne $resolvedCloud) {
+    throw "Cloud boundary mismatch: entra-manifest.json declares cloud='$manifestCloud', but Deploy-AvdIntune.ps1 was invoked with -Cloud '$resolvedCloud'."
+}
+
+$cloudEnv = Resolve-AvdCloudEnvironment -CloudName $resolvedCloud
+$graphBaseUri = ([string]$cloudEnv.graphEndpoint).TrimEnd('/')
+Assert-AvdCloudContextMatch -CloudEnv $cloudEnv -TargetCloud $resolvedCloud -SkipSessionCheck ($isDryRun -or $null -ne $GraphInvoker)
+
+$manifestComplianceProfile = if ($null -ne $entraManifest.PSObject.Properties['complianceProfile'] -and -not [string]::IsNullOrWhiteSpace([string]$entraManifest.complianceProfile)) {
+    ([string]$entraManifest.complianceProfile).Trim().ToLowerInvariant()
+} else {
+    ''
+}
+$resolvedComplianceProfile = if ($PSBoundParameters.ContainsKey('ComplianceProfile') -and -not [string]::IsNullOrWhiteSpace($ComplianceProfile)) {
+    $ComplianceProfile.Trim().ToLowerInvariant()
+} elseif (-not [string]::IsNullOrWhiteSpace($manifestComplianceProfile)) {
+    $manifestComplianceProfile
+} elseif ($resolvedCloud -eq 'usgov') {
+    'itar-cui'
+} else {
+    'standard'
+}
+
 $resolvedPrefix = if (-not [string]::IsNullOrWhiteSpace($Prefix)) {
     $Prefix.Trim()
 } elseif ($null -ne $entraManifest.PSObject.Properties['prefix'] -and -not [string]::IsNullOrWhiteSpace([string]$entraManifest.prefix)) {
@@ -265,12 +365,61 @@ $resolvedProfilesDir = if (-not [string]::IsNullOrWhiteSpace($ProfilesDirectory)
 
 $stampPrefix = "[avd-ops-$resolvedPrefix-$environment]"
 
-if (-not $PSCmdlet.ShouldProcess("Microsoft Intune ($stampPrefix)", 'Deploy AVD Settings Catalog and compliance profiles')) {
+# Capability-driven Windows 365 Government preflight checks (C26)
+$resolvedWin365AncId = if (-not [string]::IsNullOrWhiteSpace($Win365AncId)) {
+    $Win365AncId.Trim()
+} elseif ($null -ne $entraManifest.PSObject.Properties['win365AncId'] -and -not [string]::IsNullOrWhiteSpace([string]$entraManifest.win365AncId)) {
+    ([string]$entraManifest.win365AncId).Trim()
+} else {
+    ''
+}
+
+if ($IncludeWin365.IsPresent) {
+    $caps = $cloudEnv.capabilities
+    $mhnSupported = if ($null -ne $caps.PSObject.Properties['win365MicrosoftHostedNetwork']) {
+        [bool]$caps.win365MicrosoftHostedNetwork
+    } elseif ($null -ne $caps.PSObject.Properties['win365MhnSupported']) {
+        [bool]$caps.win365MhnSupported
+    } else {
+        $true
+    }
+    $ancSupported = if ($null -ne $caps.PSObject.Properties['win365AzureNetworkConnection']) {
+        [bool]$caps.win365AzureNetworkConnection
+    } else {
+        $true
+    }
+    $requiresAnc = if ($null -ne $caps.PSObject.Properties['win365RequiresAnc']) {
+        [bool]$caps.win365RequiresAnc
+    } else {
+        ($ancSupported -and -not $mhnSupported)
+    }
+    $frontlineSupported = if ($null -ne $caps.PSObject.Properties['win365Frontline']) {
+        [bool]$caps.win365Frontline
+    } elseif ($null -ne $caps.PSObject.Properties['win365FrontlineSupported']) {
+        [bool]$caps.win365FrontlineSupported
+    } elseif ($null -ne $caps.PSObject.Properties['win365FrontlineSharedSupported']) {
+        [bool]$caps.win365FrontlineSharedSupported
+    } else {
+        $true
+    }
+
+    if ($Win365NetworkMode -eq 'mhn' -and -not $mhnSupported) {
+        throw "Windows 365 Microsoft Hosted Network (MHN) is not supported in cloud '$resolvedCloud' (C26 win365MicrosoftHostedNetwork=false). Provide an Azure Network Connection (-Win365AncId)."
+    }
+    if ($Win365ProvisioningMode -in @('frontlineDedicated', 'frontlineShared') -and -not $frontlineSupported) {
+        throw "Windows 365 Frontline mode ('$Win365ProvisioningMode') is not supported in cloud '$resolvedCloud' (C26 win365Frontline=false)."
+    }
+    if ($requiresAnc -and [string]::IsNullOrWhiteSpace($resolvedWin365AncId)) {
+        throw "Windows 365 in cloud '$resolvedCloud' requires an Azure Network Connection (C26 win365RequiresAnc=true / win365MicrosoftHostedNetwork=false). Pass -Win365AncId or provide win365AncId in entra-manifest.json."
+    }
+}
+
+if (-not $PSCmdlet.ShouldProcess("Microsoft Intune ($stampPrefix, cloud=$resolvedCloud)", 'Deploy AVD Settings Catalog and compliance profiles')) {
     return
 }
 
 # 1. Preflight check: Intune licensing (read-only check; never purchases licenses)
-$skusResponse = Invoke-GraphRequest -Method 'GET' -Uri 'https://graph.microsoft.com/v1.0/subscribedSkus' -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+$skusResponse = Invoke-GraphRequest -Method 'GET' -Uri "$graphBaseUri/v1.0/subscribedSkus" -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 $hasIntunePlan = $false
 if ($null -ne $skusResponse -and $null -ne $skusResponse.PSObject.Properties['value']) {
     foreach ($sku in $skusResponse.value) {
@@ -293,7 +442,7 @@ if (-not $hasIntunePlan) {
 }
 
 # 2. Preflight check: MDM auto-enrollment and Windows multi-session device enrollment restrictions
-$enrollmentConfigs = Invoke-GraphRequest -Method 'GET' -Uri 'https://graph.microsoft.com/beta/deviceManagement/deviceEnrollmentConfigurations' -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+$enrollmentConfigs = Invoke-GraphRequest -Method 'GET' -Uri "$graphBaseUri/beta/deviceManagement/deviceEnrollmentConfigurations" -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 if ($null -ne $enrollmentConfigs -and $null -ne $enrollmentConfigs.PSObject.Properties['value']) {
     foreach ($cfg in $enrollmentConfigs.value) {
         if ($null -ne $cfg.PSObject.Properties['windowsRestriction'] -and $null -ne $cfg.windowsRestriction) {
@@ -307,7 +456,21 @@ if ($null -ne $enrollmentConfigs -and $null -ne $enrollmentConfigs.PSObject.Prop
 $settingsCatalogDir = Join-Path $resolvedProfilesDir 'settings-catalog'
 $complianceDir = Join-Path $resolvedProfilesDir 'compliance'
 
-$settingsCatalogFiles = @(Get-ChildItem -Path $settingsCatalogDir -Filter '*.json' -File | Sort-Object Name)
+$allSettingsCatalogFiles = @(Get-ChildItem -Path $settingsCatalogDir -Filter '*.json' -File | Sort-Object Name)
+$settingsCatalogFiles = @()
+foreach ($scf in $allSettingsCatalogFiles) {
+    $scfObj = Get-Content -LiteralPath $scf.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+    $profCompliance = if ($null -ne $scfObj.PSObject.Properties['complianceProfile'] -and -not [string]::IsNullOrWhiteSpace([string]$scfObj.complianceProfile)) {
+        ([string]$scfObj.complianceProfile).Trim().ToLowerInvariant()
+    } else {
+        'standard'
+    }
+    if ($profCompliance -eq 'itar-cui' -and $resolvedComplianceProfile -ne 'itar-cui') {
+        continue
+    }
+    $settingsCatalogFiles += $scf
+}
+
 $complianceFiles = @(Get-ChildItem -Path $complianceDir -Filter '*.json' -File | Sort-Object Name)
 
 if ($settingsCatalogFiles.Count -eq 0) {
@@ -337,8 +500,8 @@ if ($useAssignmentFilters) {
                 rule        = [string]$filterObj.rule
             }
             $escapedFilterName = $stampedFilterName.Replace("'", "''")
-            $filterQueryUri = "https://graph.microsoft.com/beta/deviceManagement/assignmentFilters?`$filter=displayName eq '$escapedFilterName'"
-            $existingFilterResp = Invoke-GraphRequest -Method 'GET' -Uri $filterQueryUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $filterQueryUri = "$graphBaseUri/beta/deviceManagement/assignmentFilters?`$filter=displayName eq '$escapedFilterName'"
+            $existingFilterResp = Invoke-GraphRequest -Method 'GET' -Uri $filterQueryUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
             $matchedFilter = $null
             if ($null -ne $existingFilterResp -and $null -ne $existingFilterResp.PSObject.Properties['value']) {
                 $matchedFilter = @($existingFilterResp.value | Where-Object { $_.displayName -eq $stampedFilterName } | Select-Object -First 1)
@@ -347,12 +510,12 @@ if ($useAssignmentFilters) {
             $filterId = ''
             if ($null -ne $matchedFilter -and $matchedFilter.Count -gt 0 -and $null -ne $matchedFilter[0]) {
                 $filterId = [string]$matchedFilter[0].id
-                $patchFilterUri = "https://graph.microsoft.com/beta/deviceManagement/assignmentFilters/$filterId"
-                $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchFilterUri -Body $filterPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+                $patchFilterUri = "$graphBaseUri/beta/deviceManagement/assignmentFilters/$filterId"
+                $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchFilterUri -Body $filterPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
                 $filterCreated = $false
             } else {
-                $postFilterUri = 'https://graph.microsoft.com/beta/deviceManagement/assignmentFilters'
-                $createdFilter = Invoke-GraphRequest -Method 'POST' -Uri $postFilterUri -Body $filterPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+                $postFilterUri = "$graphBaseUri/beta/deviceManagement/assignmentFilters"
+                $createdFilter = Invoke-GraphRequest -Method 'POST' -Uri $postFilterUri -Body $filterPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
                 $filterId = [string]$createdFilter.id
                 $filterCreated = $true
             }
@@ -376,8 +539,8 @@ foreach ($profileFile in $settingsCatalogFiles) {
     $payload = ConvertTo-GraphConfigurationPolicyPayload -ProfileObject $profileObj -StampedName $stampedName
 
     $escapedName = $stampedName.Replace("'", "''")
-    $filterUri = "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies?`$filter=name eq '$escapedName'"
-    $existingResp = Invoke-GraphRequest -Method 'GET' -Uri $filterUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+    $filterUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies?`$filter=name eq '$escapedName'"
+    $existingResp = Invoke-GraphRequest -Method 'GET' -Uri $filterUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 
     $matchedPolicy = $null
     if ($null -ne $existingResp -and $null -ne $existingResp.PSObject.Properties['value']) {
@@ -388,12 +551,12 @@ foreach ($profileFile in $settingsCatalogFiles) {
     $policyId = ''
     if ($null -ne $matchedPolicy -and $matchedPolicy.Count -gt 0 -and $null -ne $matchedPolicy[0]) {
         $policyId = [string]$matchedPolicy[0].id
-        $patchUri = "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies/$policyId"
-        $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchUri -Body $payload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $patchUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies/$policyId"
+        $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchUri -Body $payload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $wasCreated = $false
     } else {
-        $postUri = 'https://graph.microsoft.com/beta/deviceManagement/configurationPolicies'
-        $createdPolicy = Invoke-GraphRequest -Method 'POST' -Uri $postUri -Body $payload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $postUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies"
+        $createdPolicy = Invoke-GraphRequest -Method 'POST' -Uri $postUri -Body $payload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $policyId = [string]$createdPolicy.id
         $wasCreated = $true
     }
@@ -413,8 +576,8 @@ foreach ($profileFile in $settingsCatalogFiles) {
             }
         )
     }
-    $assignUri = "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies/$policyId/assign"
-    $null = Invoke-GraphRequest -Method 'POST' -Uri $assignUri -Body $assignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+    $assignUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies/$policyId/assign"
+    $null = Invoke-GraphRequest -Method 'POST' -Uri $assignUri -Body $assignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 
     $settingsCatalogPolicyIds += $policyId
     $runManifestResources += [ordered]@{
@@ -440,8 +603,8 @@ foreach ($compFile in $complianceFiles) {
     $compPayload['displayName'] = $stampedDisplayName
 
     $escapedDisplayName = $stampedDisplayName.Replace("'", "''")
-    $filterUri = "https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies?`$filter=displayName eq '$escapedDisplayName'"
-    $existingResp = Invoke-GraphRequest -Method 'GET' -Uri $filterUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+    $filterUri = "$graphBaseUri/beta/deviceManagement/deviceCompliancePolicies?`$filter=displayName eq '$escapedDisplayName'"
+    $existingResp = Invoke-GraphRequest -Method 'GET' -Uri $filterUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 
     $matchedComp = $null
     if ($null -ne $existingResp -and $null -ne $existingResp.PSObject.Properties['value']) {
@@ -452,12 +615,12 @@ foreach ($compFile in $complianceFiles) {
     $compPolicyId = ''
     if ($null -ne $matchedComp -and $matchedComp.Count -gt 0 -and $null -ne $matchedComp[0]) {
         $compPolicyId = [string]$matchedComp[0].id
-        $patchUri = "https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies/$compPolicyId"
-        $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchUri -Body $compPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $patchUri = "$graphBaseUri/beta/deviceManagement/deviceCompliancePolicies/$compPolicyId"
+        $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchUri -Body $compPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $wasCreated = $false
     } else {
-        $postUri = 'https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies'
-        $createdComp = Invoke-GraphRequest -Method 'POST' -Uri $postUri -Body $compPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $postUri = "$graphBaseUri/beta/deviceManagement/deviceCompliancePolicies"
+        $createdComp = Invoke-GraphRequest -Method 'POST' -Uri $postUri -Body $compPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $compPolicyId = [string]$createdComp.id
         $wasCreated = $true
     }
@@ -477,8 +640,8 @@ foreach ($compFile in $complianceFiles) {
             }
         )
     }
-    $assignUri = "https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies/$compPolicyId/assign"
-    $null = Invoke-GraphRequest -Method 'POST' -Uri $assignUri -Body $assignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+    $assignUri = "$graphBaseUri/beta/deviceManagement/deviceCompliancePolicies/$compPolicyId/assign"
+    $null = Invoke-GraphRequest -Method 'POST' -Uri $assignUri -Body $assignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 
     $compliancePolicyIds += $compPolicyId
     $runManifestResources += [ordered]@{
@@ -501,7 +664,7 @@ if ($IncludeWin365.IsPresent) {
         $avdUsersGroupId
     }
 
-    $ancResp = Invoke-GraphRequest -Method 'GET' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/onPremisesConnections' -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+    $ancResp = Invoke-GraphRequest -Method 'GET' -Uri "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/onPremisesConnections" -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
     if ($null -ne $ancResp -and $null -ne $ancResp.PSObject.Properties['value']) {
         foreach ($anc in $ancResp.value) {
             if ($null -ne $anc.PSObject.Properties['healthCheckStatus'] -and $anc.healthCheckStatus -eq 'failed') {
@@ -520,8 +683,16 @@ if ($IncludeWin365.IsPresent) {
             $provPayload[$prop.Name] = $prop.Value
         }
         $provPayload['displayName'] = $stampedProvName
+        if (-not [string]::IsNullOrWhiteSpace($resolvedWin365AncId)) {
+            $provPayload['domainJoinConfigurations'] = @(
+                [ordered]@{
+                    domainJoinType         = 'azureAdJoin'
+                    onPremisesConnectionId = $resolvedWin365AncId
+                }
+            )
+        }
 
-        $existingProvResp = Invoke-GraphRequest -Method 'GET' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies' -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $existingProvResp = Invoke-GraphRequest -Method 'GET' -Uri "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies" -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $matchedProv = $null
         if ($null -ne $existingProvResp -and $null -ne $existingProvResp.PSObject.Properties['value']) {
             $matchedProv = @($existingProvResp.value | Where-Object { $_.displayName -eq $stampedProvName } | Select-Object -First 1)
@@ -530,10 +701,10 @@ if ($IncludeWin365.IsPresent) {
         $provId = ''
         if ($null -ne $matchedProv -and $matchedProv.Count -gt 0 -and $null -ne $matchedProv[0]) {
             $provId = [string]$matchedProv[0].id
-            $null = Invoke-GraphRequest -Method 'PATCH' -Uri "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies/$provId" -Body $provPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $null = Invoke-GraphRequest -Method 'PATCH' -Uri "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies/$provId" -Body $provPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
             $provCreated = $false
         } else {
-            $createdProv = Invoke-GraphRequest -Method 'POST' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies' -Body $provPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $createdProv = Invoke-GraphRequest -Method 'POST' -Uri "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies" -Body $provPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
             $provId = [string]$createdProv.id
             $provCreated = $true
         }
@@ -547,7 +718,7 @@ if ($IncludeWin365.IsPresent) {
                 }
             )
         }
-        $null = Invoke-GraphRequest -Method 'POST' -Uri "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies/$provId/assign" -Body $provAssignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $null = Invoke-GraphRequest -Method 'POST' -Uri "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies/$provId/assign" -Body $provAssignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $win365ProvisioningPolicyIds += $provId
         $runManifestResources += [ordered]@{
             resourceType = 'cloudPcProvisioningPolicy'
@@ -569,7 +740,7 @@ if ($IncludeWin365.IsPresent) {
         }
         $usPayload['displayName'] = $stampedUsName
 
-        $existingUsResp = Invoke-GraphRequest -Method 'GET' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/userSettings' -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $existingUsResp = Invoke-GraphRequest -Method 'GET' -Uri "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/userSettings" -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $matchedUs = $null
         if ($null -ne $existingUsResp -and $null -ne $existingUsResp.PSObject.Properties['value']) {
             $matchedUs = @($existingUsResp.value | Where-Object { $_.displayName -eq $stampedUsName } | Select-Object -First 1)
@@ -578,10 +749,10 @@ if ($IncludeWin365.IsPresent) {
         $usId = ''
         if ($null -ne $matchedUs -and $matchedUs.Count -gt 0 -and $null -ne $matchedUs[0]) {
             $usId = [string]$matchedUs[0].id
-            $null = Invoke-GraphRequest -Method 'PATCH' -Uri "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/userSettings/$usId" -Body $usPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $null = Invoke-GraphRequest -Method 'PATCH' -Uri "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/userSettings/$usId" -Body $usPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
             $usCreated = $false
         } else {
-            $createdUs = Invoke-GraphRequest -Method 'POST' -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/userSettings' -Body $usPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+            $createdUs = Invoke-GraphRequest -Method 'POST' -Uri "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/userSettings" -Body $usPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
             $usId = [string]$createdUs.id
             $usCreated = $true
         }
@@ -595,7 +766,7 @@ if ($IncludeWin365.IsPresent) {
                 }
             )
         }
-        $null = Invoke-GraphRequest -Method 'POST' -Uri "https://graph.microsoft.com/v1.0/deviceManagement/virtualEndpoint/userSettings/$usId/assign" -Body $usAssignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker
+        $null = Invoke-GraphRequest -Method 'POST' -Uri "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/userSettings/$usId/assign" -Body $usAssignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $win365UserSettingsIds += $usId
         $runManifestResources += [ordered]@{
             resourceType = 'cloudPcUserSetting'
@@ -613,6 +784,8 @@ $runManifest = [ordered]@{
     schema              = 'avd-ops-intune-run-manifest/v1'
     stampPrefix         = $stampPrefix
     environment         = $environment
+    cloud               = $resolvedCloud
+    complianceProfile   = $resolvedComplianceProfile
     prefix              = $resolvedPrefix
     targetDeviceGroupId = $targetDeviceGroupId
     avdUsersGroupId     = $avdUsersGroupId
@@ -627,6 +800,8 @@ $runJson = $runManifest | ConvertTo-Json -Depth 10
 $handoffManifest = [ordered]@{
     schema                  = 'avd-ops-intune-manifest/v1'
     environment             = $environment
+    cloud                   = $resolvedCloud
+    complianceProfile       = $resolvedComplianceProfile
     targetDeviceGroupId     = $targetDeviceGroupId
     settingsCatalogProfiles = @($settingsCatalogPolicyIds)
     compliancePolicyId      = [string]$compliancePolicyIds[0]

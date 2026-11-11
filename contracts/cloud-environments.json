@@ -1,0 +1,283 @@
+{
+  "$schema": "https://assess.avd-ops.dev/schemas/avd-cloud-environments/v1.json",
+  "schema": "avd-cloud-environments/v1",
+  "version": 1,
+  "environments": [
+    {
+      "id": "commercial",
+      "displayName": "Azure Commercial + Microsoft 365 Commercial",
+      "azCloudName": "AzureCloud",
+      "psEnvironmentName": "AzureCloud",
+      "entraEnvironment": "Global",
+      "armEndpoint": "https://management.azure.com",
+      "loginEndpoint": "https://login.microsoftonline.com",
+      "graphEndpoint": "https://graph.microsoft.com",
+      "storageEndpointSuffix": "core.windows.net",
+      "keyVaultDnsSuffix": "vault.azure.net",
+      "logAnalyticsWorkspaceSuffix": "opinsights.azure.com",
+      "logAnalyticsOdsSuffix": "ods.opinsights.azure.com",
+      "avd": {
+        "rdwebUrl": "https://rdweb.wvd.microsoft.com",
+        "feedDiscoveryUrl": "https://rdweb.wvd.microsoft.com/api/arm/feeddiscovery",
+        "brokerHost": "rdbroker.wvd.microsoft.com",
+        "diagnosticsHost": "rddiagnostics.wvd.microsoft.com",
+        "globalGatewayDns": "afdfp-rdgateway-r1.wvd.microsoft.com"
+      },
+      "m365": {
+        "teamsAdminEnvironment": "Commercial",
+        "exchangeEnvironmentName": "O365Default"
+      },
+      "powerPlatform": {
+        "bapEndpoint": "https://api.bap.microsoft.com",
+        "pacCloud": "Public",
+        "dataverseSuffixes": [
+          "crm.dynamics.com",
+          "crm3.dynamics.com",
+          "crm4.dynamics.com"
+        ]
+      },
+      "privateDnsZones": {
+        "avdConnection": "privatelink.wvd.microsoft.com",
+        "avdDiscovery": "privatelink.wvd.microsoft.com",
+        "avdGlobal": "privatelink-global.wvd.microsoft.com",
+        "azureFiles": "privatelink.file.core.windows.net",
+        "azureBlob": "privatelink.blob.core.windows.net",
+        "keyVault": "privatelink.vaultcore.azure.net"
+      },
+      "defaultRegions": [
+        "eastus2",
+        "centralus",
+        "westus3"
+      ],
+      "allowedRegions": [
+        "eastus",
+        "eastus2",
+        "centralus",
+        "northcentralus",
+        "southcentralus",
+        "westus2",
+        "westus3",
+        "canadacentral",
+        "northeurope",
+        "westeurope",
+        "uksouth",
+        "australiaeast",
+        "japaneast",
+        "southeastasia"
+      ],
+      "capabilities": {
+        "multimediaRedirection": true,
+        "win365MicrosoftHostedNetwork": true,
+        "win365AzureNetworkConnection": true,
+        "win365CrossCloudAnc": false,
+        "win365Frontline": true,
+        "bastionDeveloperSku": true,
+        "entraKerberosAzureFiles": true,
+        "screenCaptureProtection": true,
+        "watermarking": true,
+        "udpShortpathPublicStun": true,
+        "confidentialVms": true
+      }
+    },
+    {
+      "id": "usgov",
+      "displayName": "Azure US Government + Microsoft 365 GCC High",
+      "azCloudName": "AzureUSGovernment",
+      "psEnvironmentName": "AzureUSGovernment",
+      "entraEnvironment": "USGov",
+      "armEndpoint": "https://management.usgovcloudapi.net",
+      "loginEndpoint": "https://login.microsoftonline.us",
+      "graphEndpoint": "https://graph.microsoft.us",
+      "storageEndpointSuffix": "core.usgovcloudapi.net",
+      "keyVaultDnsSuffix": "vault.usgovcloudapi.net",
+      "logAnalyticsWorkspaceSuffix": "opinsights.azure.us",
+      "logAnalyticsOdsSuffix": "ods.opinsights.azure.us",
+      "avd": {
+        "rdwebUrl": "https://rdweb.wvd.azure.us",
+        "feedDiscoveryUrl": "https://rdweb.wvd.azure.us/api/arm/feeddiscovery",
+        "brokerHost": "rdbroker.wvd.azure.us",
+        "diagnosticsHost": "rddiagnostics.wvd.azure.us",
+        "globalGatewayDns": "rdgateway.wvd.azure.us"
+      },
+      "m365": {
+        "teamsAdminEnvironment": "GCCHigh",
+        "exchangeEnvironmentName": "O365USGovGCCHigh"
+      },
+      "powerPlatform": {
+        "bapEndpoint": "https://high.api.bap.microsoft.us",
+        "pacCloud": "UsGovHigh",
+        "dataverseSuffixes": [
+          "crm9.dynamics.com"
+        ]
+      },
+      "privateDnsZones": {
+        "avdConnection": "privatelink.avd.azure.us",
+        "avdDiscovery": "privatelink.avd.azure.us",
+        "avdGlobal": "privatelink-global.wvd.azure.us",
+        "azureFiles": "privatelink.file.core.usgovcloudapi.net",
+        "azureBlob": "privatelink.blob.core.usgovcloudapi.net",
+        "keyVault": "privatelink.vaultcore.usgovcloudapi.net"
+      },
+      "defaultRegions": [
+        "usgovvirginia",
+        "usgovarizona"
+      ],
+      "allowedRegions": [
+        "usgovvirginia",
+        "usgovarizona",
+        "usgovtexas"
+      ],
+      "capabilities": {
+        "multimediaRedirection": false,
+        "win365MicrosoftHostedNetwork": false,
+        "win365AzureNetworkConnection": true,
+        "win365CrossCloudAnc": true,
+        "win365Frontline": false,
+        "bastionDeveloperSku": false,
+        "entraKerberosAzureFiles": true,
+        "screenCaptureProtection": true,
+        "watermarking": true,
+        "udpShortpathPublicStun": true,
+        "confidentialVms": false
+      }
+    }
+  ],
+  "clouds": {
+    "commercial": {
+      "displayName": "Azure Commercial + Microsoft 365 Commercial",
+      "azCloudName": "AzureCloud",
+      "psEnvironmentName": "AzureCloud",
+      "entraEnvironment": "Global",
+      "armEndpoint": "https://management.azure.com",
+      "loginEndpoint": "https://login.microsoftonline.com",
+      "graphEndpoint": "https://graph.microsoft.com",
+      "storageEndpointSuffix": "core.windows.net",
+      "keyVaultDnsSuffix": "vault.azure.net",
+      "logAnalyticsWorkspaceSuffix": "opinsights.azure.com",
+      "logAnalyticsOdsSuffix": "ods.opinsights.azure.com",
+      "avd": {
+        "rdwebUrl": "https://rdweb.wvd.microsoft.com",
+        "feedDiscoveryUrl": "https://rdweb.wvd.microsoft.com/api/arm/feeddiscovery",
+        "brokerHost": "rdbroker.wvd.microsoft.com",
+        "diagnosticsHost": "rddiagnostics.wvd.microsoft.com",
+        "globalGatewayDns": "afdfp-rdgateway-r1.wvd.microsoft.com"
+      },
+      "m365": {
+        "teamsAdminEnvironment": "Commercial",
+        "exchangeEnvironmentName": "O365Default"
+      },
+      "powerPlatform": {
+        "bapEndpoint": "https://api.bap.microsoft.com",
+        "pacCloud": "Public",
+        "dataverseSuffixes": [
+          "crm.dynamics.com",
+          "crm3.dynamics.com",
+          "crm4.dynamics.com"
+        ]
+      },
+      "privateDnsZones": {
+        "avdConnection": "privatelink.wvd.microsoft.com",
+        "avdDiscovery": "privatelink.wvd.microsoft.com",
+        "avdGlobal": "privatelink-global.wvd.microsoft.com",
+        "azureFiles": "privatelink.file.core.windows.net",
+        "azureBlob": "privatelink.blob.core.windows.net",
+        "keyVault": "privatelink.vaultcore.azure.net"
+      },
+      "defaultRegions": [
+        "eastus2",
+        "centralus",
+        "westus3"
+      ],
+      "allowedRegions": [
+        "eastus",
+        "eastus2",
+        "centralus",
+        "northcentralus",
+        "southcentralus",
+        "westus2",
+        "westus3",
+        "canadacentral",
+        "northeurope",
+        "westeurope",
+        "uksouth",
+        "australiaeast",
+        "japaneast",
+        "southeastasia"
+      ],
+      "capabilities": {
+        "multimediaRedirection": true,
+        "win365MicrosoftHostedNetwork": true,
+        "win365AzureNetworkConnection": true,
+        "win365CrossCloudAnc": false,
+        "win365Frontline": true,
+        "bastionDeveloperSku": true,
+        "entraKerberosAzureFiles": true,
+        "screenCaptureProtection": true,
+        "watermarking": true,
+        "udpShortpathPublicStun": true,
+        "confidentialVms": true
+      }
+    },
+    "usgov": {
+      "displayName": "Azure US Government + Microsoft 365 GCC High",
+      "azCloudName": "AzureUSGovernment",
+      "psEnvironmentName": "AzureUSGovernment",
+      "entraEnvironment": "USGov",
+      "armEndpoint": "https://management.usgovcloudapi.net",
+      "loginEndpoint": "https://login.microsoftonline.us",
+      "graphEndpoint": "https://graph.microsoft.us",
+      "storageEndpointSuffix": "core.usgovcloudapi.net",
+      "keyVaultDnsSuffix": "vault.usgovcloudapi.net",
+      "logAnalyticsWorkspaceSuffix": "opinsights.azure.us",
+      "logAnalyticsOdsSuffix": "ods.opinsights.azure.us",
+      "avd": {
+        "rdwebUrl": "https://rdweb.wvd.azure.us",
+        "feedDiscoveryUrl": "https://rdweb.wvd.azure.us/api/arm/feeddiscovery",
+        "brokerHost": "rdbroker.wvd.azure.us",
+        "diagnosticsHost": "rddiagnostics.wvd.azure.us",
+        "globalGatewayDns": "rdgateway.wvd.azure.us"
+      },
+      "m365": {
+        "teamsAdminEnvironment": "GCCHigh",
+        "exchangeEnvironmentName": "O365USGovGCCHigh"
+      },
+      "powerPlatform": {
+        "bapEndpoint": "https://high.api.bap.microsoft.us",
+        "pacCloud": "UsGovHigh",
+        "dataverseSuffixes": [
+          "crm9.dynamics.com"
+        ]
+      },
+      "privateDnsZones": {
+        "avdConnection": "privatelink.avd.azure.us",
+        "avdDiscovery": "privatelink.avd.azure.us",
+        "avdGlobal": "privatelink-global.wvd.azure.us",
+        "azureFiles": "privatelink.file.core.usgovcloudapi.net",
+        "azureBlob": "privatelink.blob.core.usgovcloudapi.net",
+        "keyVault": "privatelink.vaultcore.usgovcloudapi.net"
+      },
+      "defaultRegions": [
+        "usgovvirginia",
+        "usgovarizona"
+      ],
+      "allowedRegions": [
+        "usgovvirginia",
+        "usgovarizona",
+        "usgovtexas"
+      ],
+      "capabilities": {
+        "multimediaRedirection": false,
+        "win365MicrosoftHostedNetwork": false,
+        "win365AzureNetworkConnection": true,
+        "win365CrossCloudAnc": true,
+        "win365Frontline": false,
+        "bastionDeveloperSku": false,
+        "entraKerberosAzureFiles": true,
+        "screenCaptureProtection": true,
+        "watermarking": true,
+        "udpShortpathPublicStun": true,
+        "confidentialVms": false
+      }
+    }
+  }
+}

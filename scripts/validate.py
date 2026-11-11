@@ -57,6 +57,16 @@ def validate_intune_manifest(data: Any, label: str, schema: dict[str, Any]) -> l
             f"{label}: 'environment' must be one of dev, test, prod (got {data['environment']!r})"
         )
 
+    if "cloud" in data and data["cloud"] not in ("commercial", "usgov"):
+        errs.append(
+            f"{label}: 'cloud' must be one of commercial, usgov (got {data['cloud']!r})"
+        )
+
+    if "complianceProfile" in data and data["complianceProfile"] not in ("standard", "itar-cui"):
+        errs.append(
+            f"{label}: 'complianceProfile' must be one of standard, itar-cui (got {data['complianceProfile']!r})"
+        )
+
     if "targetDeviceGroupId" in data:
         if not isinstance(data["targetDeviceGroupId"], str) or not data["targetDeviceGroupId"].strip():
             errs.append(f"{label}: 'targetDeviceGroupId' must be a non-empty string")
@@ -97,6 +107,35 @@ def validate_intune_manifest(data: Any, label: str, schema: dict[str, Any]) -> l
     return errs
 
 
+def validate_cloud_environments_contract(data: Any, rel_path: Path) -> list[str]:
+    """Validate contracts/cloud-environments.json (C26)."""
+    errs: list[str] = []
+    if not isinstance(data, dict):
+        return [f"{rel_path}: contract root must be an object"]
+    if data.get("schema") != "avd-cloud-environments/v1":
+        errs.append(f"{rel_path}: 'schema' must equal 'avd-cloud-environments/v1'")
+    clouds = data.get("clouds")
+    if not isinstance(clouds, dict):
+        errs.append(f"{rel_path}: 'clouds' must be an object")
+        return errs
+    for cloud_id, expected_graph in (
+        ("commercial", "https://graph.microsoft.com"),
+        ("usgov", "https://graph.microsoft.us"),
+    ):
+        c_obj = clouds.get(cloud_id)
+        if not isinstance(c_obj, dict):
+            errs.append(f"{rel_path}: missing clouds.{cloud_id}")
+            continue
+        if c_obj.get("graphEndpoint") != expected_graph:
+            errs.append(
+                f"{rel_path}: clouds.{cloud_id}.graphEndpoint must equal {expected_graph!r}"
+            )
+        caps = c_obj.get("capabilities")
+        if not isinstance(caps, dict):
+            errs.append(f"{rel_path}: clouds.{cloud_id}.capabilities must be an object")
+    return errs
+
+
 def validate_settings_catalog_profile(data: Any, rel_path: Path) -> list[str]:
     """Validate a Settings Catalog profile template."""
     errs: list[str] = []
@@ -107,6 +146,10 @@ def validate_settings_catalog_profile(data: Any, rel_path: Path) -> list[str]:
             errs.append(f"{rel_path}: missing required key '{req}'")
     if "name" in data and (not isinstance(data["name"], str) or not data["name"].startswith("[avd-ops]")):
         errs.append(f"{rel_path}: 'name' must be a string starting with '[avd-ops]'")
+    if "complianceProfile" in data and data["complianceProfile"] not in ("standard", "itar-cui"):
+        errs.append(
+            f"{rel_path}: 'complianceProfile' must be one of standard, itar-cui"
+        )
     if "settings" in data:
         if not isinstance(data["settings"], list) or not data["settings"]:
             errs.append(f"{rel_path}: 'settings' must be a non-empty list")
@@ -192,6 +235,16 @@ def run_validation(manifest_path: Path | None = None) -> list[str]:
         schema_data = json.loads(schema_file.read_text(encoding="utf-8"))
     except Exception as exc:
         return [f"contracts/intune-manifest.schema.json: failed to load schema: {exc}"]
+
+    c26_file = ROOT / "contracts" / "cloud-environments.json"
+    if not c26_file.is_file():
+        errors.append("contracts/cloud-environments.json: missing C26 cloud environments contract")
+    else:
+        try:
+            c26_data = json.loads(c26_file.read_text(encoding="utf-8"))
+            errors.extend(validate_cloud_environments_contract(c26_data, c26_file.relative_to(ROOT)))
+        except Exception as exc:
+            errors.append(f"contracts/cloud-environments.json: invalid JSON: {exc}")
 
     for jf in sorted(ROOT.rglob("*.json")):
         if ".git" in jf.parts:
