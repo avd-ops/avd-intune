@@ -33,9 +33,13 @@ function Resolve-AvdCloudEnvironment {
 function Assert-AvdCloudContextMatch {
     param(
         [Parameter(Mandatory)][object]$CloudEnv,
-        [Parameter(Mandatory)][string]$TargetCloud
+        [Parameter(Mandatory)][string]$TargetCloud,
+        [Parameter()][bool]$SkipSessionCheck = $false
     )
-    $getAzCtxCmd = Get-Command 'Get-AzContext' -ErrorAction SilentlyContinue
+    $getAzCtxCmd = Get-Item -LiteralPath 'Function:Get-AzContext' -ErrorAction SilentlyContinue
+    if ($null -eq $getAzCtxCmd -and -not $SkipSessionCheck -and $null -ne (Get-Module -Name 'Az.Accounts')) {
+        $getAzCtxCmd = Get-Command 'Get-AzContext' -ErrorAction SilentlyContinue
+    }
     if ($null -ne $getAzCtxCmd) {
         $azCtx = & $getAzCtxCmd -ErrorAction SilentlyContinue
         if ($null -ne $azCtx -and $null -ne $azCtx.PSObject.Properties['Environment'] -and $null -ne $azCtx.Environment) {
@@ -45,7 +49,10 @@ function Assert-AvdCloudContextMatch {
             }
         }
     }
-    $getMgCtxCmd = Get-Command 'Get-MgContext' -ErrorAction SilentlyContinue
+    $getMgCtxCmd = Get-Item -LiteralPath 'Function:Get-MgContext' -ErrorAction SilentlyContinue
+    if ($null -eq $getMgCtxCmd -and -not $SkipSessionCheck -and $null -ne (Get-Module -Name 'Microsoft.Graph.Authentication')) {
+        $getMgCtxCmd = Get-Command 'Get-MgContext' -ErrorAction SilentlyContinue
+    }
     if ($null -ne $getMgCtxCmd) {
         $mgCtx = & $getMgCtxCmd -ErrorAction SilentlyContinue
         if ($null -ne $mgCtx -and $null -ne $mgCtx.PSObject.Properties['Environment']) {
@@ -54,6 +61,9 @@ function Assert-AvdCloudContextMatch {
                 throw "Cloud boundary mismatch: active MgGraph environment is '$activeMgEnv', but target cloud '$TargetCloud' requires '$($CloudEnv.entraEnvironment)' (Connect-MgGraph -Environment $($CloudEnv.entraEnvironment))."
             }
         }
+    }
+    if (Test-Path -LiteralPath 'Alias:Invoke-GraphRequest') {
+        Remove-Item -LiteralPath 'Alias:Invoke-GraphRequest' -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -110,7 +120,7 @@ if (-not [string]::IsNullOrWhiteSpace($manifestCloud) -and $manifestCloud -ne $r
 
 $cloudEnv = Resolve-AvdCloudEnvironment -CloudName $resolvedCloud
 $graphBaseUri = ([string]$cloudEnv.graphEndpoint).TrimEnd('/')
-Assert-AvdCloudContextMatch -CloudEnv $cloudEnv -TargetCloud $resolvedCloud
+Assert-AvdCloudContextMatch -CloudEnv $cloudEnv -TargetCloud $resolvedCloud -SkipSessionCheck ($isDryRun -or $null -ne $GraphInvoker)
 
 $resolvedComplianceProfile = if ($PSBoundParameters.ContainsKey('ComplianceProfile') -and -not [string]::IsNullOrWhiteSpace($ComplianceProfile)) {
     $ComplianceProfile.Trim().ToLowerInvariant()
