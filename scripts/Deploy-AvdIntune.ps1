@@ -13,6 +13,7 @@ param(
     [Parameter()][string]$Win365AncId = '',
     [Parameter()][ValidateSet('anc', 'mhn')][string]$Win365NetworkMode = '',
     [Parameter()][ValidateSet('enterprise', 'frontlineDedicated', 'frontlineShared')][string]$Win365ProvisioningMode = 'enterprise',
+    [Parameter()][switch]$IncludeGpuProfile,
     [Parameter()][switch]$DryRun,
     [Parameter()][scriptblock]$GraphInvoker
 )
@@ -459,6 +460,9 @@ $complianceDir = Join-Path $resolvedProfilesDir 'compliance'
 $allSettingsCatalogFiles = @(Get-ChildItem -Path $settingsCatalogDir -Filter '*.json' -File | Sort-Object Name)
 $settingsCatalogFiles = @()
 foreach ($scf in $allSettingsCatalogFiles) {
+    if (-not $IncludeGpuProfile.IsPresent -and $scf.Name -eq 'avd-gpu-graphics-encoding.json') {
+        continue
+    }
     $scfObj = Get-Content -LiteralPath $scf.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
     $profCompliance = if ($null -ne $scfObj.PSObject.Properties['complianceProfile'] -and -not [string]::IsNullOrWhiteSpace([string]$scfObj.complianceProfile)) {
         ([string]$scfObj.complianceProfile).Trim().ToLowerInvariant()
@@ -470,7 +474,6 @@ foreach ($scf in $allSettingsCatalogFiles) {
     }
     $settingsCatalogFiles += $scf
 }
-
 $complianceFiles = @(Get-ChildItem -Path $complianceDir -Filter '*.json' -File | Sort-Object Name)
 
 if ($settingsCatalogFiles.Count -eq 0) {

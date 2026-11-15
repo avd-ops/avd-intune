@@ -1,0 +1,20 @@
+{
+  "name": "[avd-ops] AVD GPU Graphics Encoding (Hardware GPU, AVC Hardware Encode, AVC 4:4:4)",
+  "description": "Declarative Settings Catalog policy enabling GPU rendering, H.264/AVC hardware encoding, and AVC 4:4:4 graphics mode for Azure Virtual Desktop GPU session hosts.",
+  "platforms": "windows10",
+  "technologies": "mdm",
+  "settings": [
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_remote_session_environment_usehardwaregraphicsadapters",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_remote_session_environment_usehardwaregraphicsadapters_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_remote_session_environment_configureh264avchardwareencoding",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_remote_session_environment_configureh264avchardwareencoding_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_remote_session_environment_prioritizeh264avc444graphicsmode",
+      "value": "device_vendor_msft_policy_config_remotedesktopservices_remote_session_environment_prioritizeh264avc444graphicsmode_1"
+    }
+  ]
+}
