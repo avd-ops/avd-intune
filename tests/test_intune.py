@@ -71,6 +71,7 @@ class TestAvdIntune(unittest.TestCase):
         self.assertIn("defender_allowrealtimemonitoring", joined.lower(), "Defender Antivirus baseline must be present")
         self.assertIn("defender_excludedpaths", joined.lower(), "Defender FSLogix/AVD exclusions must be present")
         self.assertIn("defender_attacksurfacereductionrules", joined.lower(), "Defender ASR rules must be present")
+        self.assertIn("profilesroamidentity", joined.lower(), "FSLogix RoamIdentity off setting must be present")
 
     def test_manifest_schema_validation_rejects_invalid_payloads(self) -> None:
         schema = json.loads((ROOT / "contracts" / "intune-manifest.schema.json").read_text(encoding="utf-8"))
@@ -156,6 +157,7 @@ $ErrorActionPreference = 'Stop'
 $store = @{{
     configurationPolicies = @{{}}
     deviceCompliancePolicies = @{{}}
+    secureByDefault = $false
 }}
 $calls = [System.Collections.Generic.List[object]]::new()
 $state = @{{ counter = 100 }}
@@ -216,6 +218,13 @@ $invoker = ({{
     if ($Method -eq 'PATCH' -and $Uri -like '*/deviceCompliancePolicies/*') {{
         return [pscustomobject]@{{ status = 'updated' }}
     }}
+    if ($Method -eq 'GET' -and $Uri -like '*/deviceManagement/settings*') {{
+        return [pscustomobject]@{{ secureByDefault = $store.secureByDefault }}
+    }}
+    if ($Method -eq 'PATCH' -and $Uri -like '*/deviceManagement/settings*') {{
+        $store.secureByDefault = [bool]$Body['secureByDefault']
+        return [pscustomobject]@{{ secureByDefault = $store.secureByDefault }}
+    }}
     if ($Method -eq 'POST' -and $Uri -like '*/assign') {{
         return [pscustomobject]@{{ status = 'assigned' }}
     }}
@@ -268,6 +277,13 @@ $run2 = Get-Content -LiteralPath '{run_path}' -Raw | ConvertFrom-Json
 
             assign_calls = [c for c in result["calls"] if c["uri"].endswith("/assign")]
             self.assertEqual(len(assign_calls), 14)
+            settings_patches = [
+                c for c in result["calls"]
+                if c["method"] == "PATCH" and c["uri"].endswith("/deviceManagement/settings")
+            ]
+            self.assertEqual(len(settings_patches), 1)
+            self.assertTrue(settings_patches[0]["body"]["secureByDefault"])
+            self.assertTrue(result["run1"]["tenantComplianceSecureByDefault"])
             for ac in assign_calls:
                 target = ac["body"]["assignments"][0]["target"]
                 self.assertEqual(target["@odata.type"], "#microsoft.graph.groupAssignmentTarget")
@@ -800,6 +816,32 @@ $calls | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath '{calls_path}' -Enc
                 }
                 self.assertEqual(assigned_filter_ids, expected_vdi_filters)
                 self.assertNotIn(physical_filter_id, assigned_filter_ids)
+
+    def test_evergreen_app_manifest_and_sync_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "evergreen-apps-resolved.json"
+            proc = subprocess.run(
+                [
+                    "pwsh",
+                    "-NoProfile",
+                    "-File",
+                    str(SCRIPTS_DIR / "Sync-EvergreenApps.ps1"),
+                    "-OutputPath",
+                    str(out_path),
+                    "-DryRun",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, f"Sync-EvergreenApps.ps1 failed:\n{proc.stderr}\n{proc.stdout}")
+            data = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertEqual(data["schema"], "avd-ops-evergreen-apps/v1")
+            self.assertGreaterEqual(len(data["apps"]), 5)
+            for app in data["apps"]:
+                self.assertEqual(app["installContext"], "system")
+                self.assertEqual(app["intent"], "required")
+                self.assertEqual(app["targetType"], "deviceGroup")
 
 
 if __name__ == "__main__":

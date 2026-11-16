@@ -227,6 +227,35 @@ def validate_win365_profile(data: Any, rel_path: Path) -> list[str]:
     return errs
 
 
+def validate_app_manifest(data: Any, rel_path: Path) -> list[str]:
+    """Validate a declarative core host app manifest (avd-assess methods/intune.md step 8)."""
+    errs: list[str] = []
+    if not isinstance(data, dict):
+        return [f"{rel_path}: app manifest root must be an object"]
+    name = data.get("name")
+    if not isinstance(name, str) or not name.startswith("[avd-ops]"):
+        errs.append(f"{rel_path}: 'name' must be a string starting with '[avd-ops]'")
+    if "targetFilters" in data:
+        tf = data["targetFilters"]
+        if not isinstance(tf, list) or "physical-desktop" in tf:
+            errs.append(f"{rel_path}: 'targetFilters' must be a list not targeting 'physical-desktop'")
+    apps = data.get("apps")
+    if not isinstance(apps, list) or not apps:
+        errs.append(f"{rel_path}: 'apps' must be a non-empty list")
+        return errs
+    for idx, app in enumerate(apps):
+        if not isinstance(app, dict):
+            errs.append(f"{rel_path}: apps[{idx}] must be an object")
+            continue
+        if app.get("installContext") != "system":
+            errs.append(f"{rel_path}: apps[{idx}].installContext must be 'system'")
+        if app.get("intent") != "required":
+            errs.append(f"{rel_path}: apps[{idx}].intent must be 'required'")
+        if app.get("targetType") != "deviceGroup":
+            errs.append(f"{rel_path}: apps[{idx}].targetType must be 'deviceGroup'")
+    return errs
+
+
 def scan_text_for_leaks(text: str, label: str) -> list[str]:
     """Check text content for disallowed emails or leaked secret patterns."""
     errs: list[str] = []
@@ -281,6 +310,8 @@ def run_validation(manifest_path: Path | None = None) -> list[str]:
             errors.extend(validate_assignment_filter(data, rel))
         elif jf.parent == ROOT / "profiles" / "win365":
             errors.extend(validate_win365_profile(data, rel))
+        elif jf.parent == ROOT / "profiles" / "apps":
+            errors.extend(validate_app_manifest(data, rel))
 
     for tf in sorted(ROOT.rglob("*")):
         if ".git" in tf.parts or "__pycache__" in tf.parts or not tf.is_file():

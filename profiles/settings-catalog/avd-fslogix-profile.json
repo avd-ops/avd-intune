@@ -25,6 +25,10 @@
     {
       "settingId": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesflipflopprofiledirectoryname",
       "value": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesflipflopprofiledirectoryname_1"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesroamidentity",
+      "value": "device_vendor_msft_policy_config_fslogixv1~policy~fslogix_profiles_profilesroamidentity_0"
     }
   ]
 }

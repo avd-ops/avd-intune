@@ -1,0 +1,61 @@
+{
+  "name": "[avd-ops] AVD & Cloud PC Core Host Apps (Evergreen / PackageFactory)",
+  "description": "Declarative core host application manifest for AVD session hosts and Windows 365 Cloud PCs. Enforces system-context, Required, device-targeted deployment per avd-assess methods/intune.md step 8, using EUCPilots Evergreen and PackageFactory as upstream sources of truth.",
+  "upstream": {
+    "evergreen": "https://github.com/EUCPilots/evergreen-module",
+    "packageFactory": "https://github.com/EUCPilots/packagefactory",
+    "vcredist": "https://github.com/EUCPilots/vcredist"
+  },
+  "targetFilters": [
+    "avd-multisession",
+    "avd-personal",
+    "win365-cloudpc"
+  ],
+  "apps": [
+    {
+      "id": "microsoft-edge-enterprise",
+      "displayName": "Microsoft Edge Enterprise (x64)",
+      "evergreenApp": "MicrosoftEdge",
+      "evergreenFilter": "Architecture -eq 'x64' -and Channel -eq 'Stable' -and Release -eq 'Enterprise'",
+      "installContext": "system",
+      "intent": "required",
+      "targetType": "deviceGroup"
+    },
+    {
+      "id": "microsoft-teams-vdi",
+      "displayName": "Microsoft Teams (New VDI / MSTeams)",
+      "evergreenApp": "MicrosoftTeams",
+      "evergreenFilter": "Architecture -eq 'x64' -and Type -eq 'msi'",
+      "installContext": "system",
+      "intent": "required",
+      "targetType": "deviceGroup"
+    },
+    {
+      "id": "microsoft-fslogix-apps",
+      "displayName": "Microsoft FSLogix Apps",
+      "evergreenApp": "MicrosoftFSLogixApps",
+      "evergreenFilter": "Channel -eq 'Production'",
+      "installContext": "system",
+      "intent": "required",
+      "targetType": "deviceGroup"
+    },
+    {
+      "id": "microsoft-rdcwebrtcredirdor",
+      "displayName": "Remote Desktop WebRTC Redirector Service",
+      "evergreenApp": "MicrosoftRdcwebrtcredirdor",
+      "evergreenFilter": "Architecture -eq 'x64'",
+      "installContext": "system",
+      "intent": "required",
+      "targetType": "deviceGroup"
+    },
+    {
+      "id": "microsoft-vcredist-2022-x64",
+      "displayName": "Microsoft Visual C++ 2015-2022 Redistributable (x64)",
+      "evergreenApp": "VcRedist",
+      "evergreenFilter": "Release -eq '2022' -and Architecture -eq 'x64'",
+      "installContext": "system",
+      "intent": "required",
+      "targetType": "deviceGroup"
+    }
+  ]
+}
