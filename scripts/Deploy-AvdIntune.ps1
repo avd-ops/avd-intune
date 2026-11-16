@@ -704,11 +704,12 @@ if (Test-Path -LiteralPath $customOmaDir) {
 
 # 4. Idempotent Compliance Policy deployment & assignment
 # Ensure tenant-wide 'no policy = noncompliant' (secureByDefault = true, avd-assess methods/intune.md step 6)
-$dmSettingsUri = "$graphBaseUri/v1.0/deviceManagement/settings"
+$dmUri = "$graphBaseUri/v1.0/deviceManagement"
+$dmSettingsUri = "$dmUri/settings"
 $dmSettings = Invoke-GraphRequest -Method 'GET' -Uri $dmSettingsUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 $isSecureByDefault = ($null -ne $dmSettings -and $null -ne $dmSettings.PSObject.Properties['secureByDefault'] -and $dmSettings.secureByDefault -eq $true)
 if (-not $isSecureByDefault) {
-    $null = Invoke-GraphRequest -Method 'PATCH' -Uri $dmSettingsUri -Body ([ordered]@{ secureByDefault = $true }) -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+    $null = Invoke-GraphRequest -Method 'PATCH' -Uri $dmUri -Body ([ordered]@{ settings = [ordered]@{ secureByDefault = $true } }) -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 }
 
 $compliancePolicyIds = @()

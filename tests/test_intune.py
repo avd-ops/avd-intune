@@ -243,8 +243,8 @@ $invoker = ({{
     if ($Method -eq 'GET' -and $Uri -like '*/deviceManagement/settings*') {{
         return [pscustomobject]@{{ secureByDefault = $store.secureByDefault }}
     }}
-    if ($Method -eq 'PATCH' -and $Uri -like '*/deviceManagement/settings*') {{
-        $store.secureByDefault = [bool]$Body['secureByDefault']
+    if ($Method -eq 'PATCH' -and $Uri -match '/deviceManagement$') {{
+        $store.secureByDefault = [bool]$Body['settings']['secureByDefault']
         return [pscustomobject]@{{ secureByDefault = $store.secureByDefault }}
     }}
     if ($Method -eq 'POST' -and $Uri -like '*/assign') {{
@@ -301,10 +301,10 @@ $run2 = Get-Content -LiteralPath '{run_path}' -Raw | ConvertFrom-Json
             self.assertEqual(len(assign_calls), 14)
             settings_patches = [
                 c for c in result["calls"]
-                if c["method"] == "PATCH" and c["uri"].endswith("/deviceManagement/settings")
+                if c["method"] == "PATCH" and c["uri"].endswith("/deviceManagement")
             ]
             self.assertEqual(len(settings_patches), 1)
-            self.assertTrue(settings_patches[0]["body"]["secureByDefault"])
+            self.assertTrue(settings_patches[0]["body"]["settings"]["secureByDefault"])
             self.assertTrue(result["run1"]["tenantComplianceSecureByDefault"])
             for ac in assign_calls:
                 target = ac["body"]["assignments"][0]["target"]
