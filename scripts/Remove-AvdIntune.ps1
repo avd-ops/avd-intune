@@ -163,6 +163,7 @@ foreach ($res in $runManifest.resources) {
 
     $deleteUri = switch ($resType) {
         'configurationPolicy' { "$graphBaseUri/beta/deviceManagement/configurationPolicies/$resId" }
+        'deviceConfiguration' { "$graphBaseUri/v1.0/deviceManagement/deviceConfigurations/$resId" }
         'deviceCompliancePolicy' { "$graphBaseUri/beta/deviceManagement/deviceCompliancePolicies/$resId" }
         'assignmentFilter' { "$graphBaseUri/beta/deviceManagement/assignmentFilters/$resId" }
         'cloudPcProvisioningPolicy' { "$graphBaseUri/v1.0/deviceManagement/virtualEndpoint/provisioningPolicies/$resId" }

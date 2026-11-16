@@ -545,10 +545,12 @@ if ($complianceFiles.Count -eq 0) {
 }
 
 $settingsCatalogPolicyIds = @()
+$deviceConfigPolicyIds = @()
 $runManifestResources = @()
 $assignmentFilterMap = [ordered]@{}
 $useAssignmentFilters = $DeployAssignmentFilters.IsPresent -or $IncludeWin365.IsPresent
 
+try {
 # 2b. Optional Platform Assignment Filters deployment (avd-multisession, avd-personal, win365-cloudpc, physical-desktop)
 if ($useAssignmentFilters) {
     $filtersDir = Join-Path $resolvedProfilesDir 'filters'
@@ -650,13 +652,64 @@ foreach ($profileFile in $settingsCatalogFiles) {
     }
 }
 
+# 3b. Idempotent Custom OMA-URI (deviceConfigurations) profiles deployment & assignment
+$customOmaDir = Join-Path $resolvedProfilesDir 'custom-oma-uri'
+if (Test-Path -LiteralPath $customOmaDir) {
+    $customOmaFiles = @(Get-ChildItem -Path $customOmaDir -Filter '*.json' -File | Sort-Object Name)
+    foreach ($omaFile in $customOmaFiles) {
+        $omaObj = Get-Content -LiteralPath $omaFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        $stampedOmaName = Get-StampedName -RawName ([string]$omaObj.displayName) -StampPrefix $stampPrefix
+        $omaPayload = [ordered]@{
+            '@odata.type' = '#microsoft.graph.windows10CustomConfiguration'
+            displayName   = $stampedOmaName
+            description   = [string]$omaObj.description
+            omaSettings   = @($omaObj.omaSettings)
+        }
+        $escapedOmaName = $stampedOmaName.Replace("'", "''")
+        $encodedOmaFilter = [System.Uri]::EscapeDataString("displayName eq '$escapedOmaName'")
+        $omaQueryUri = "$graphBaseUri/v1.0/deviceManagement/deviceConfigurations?`$filter=$encodedOmaFilter"
+        $existingOmaResp = Invoke-GraphRequest -Method 'GET' -Uri $omaQueryUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+        $matchedOma = $null
+        if ($null -ne $existingOmaResp -and $null -ne $existingOmaResp.PSObject.Properties['value']) {
+            $matchedOma = @($existingOmaResp.value | Where-Object { $_.displayName -eq $stampedOmaName } | Select-Object -First 1)
+        }
+        $omaCreated = $false
+        $omaId = ''
+        if ($null -ne $matchedOma -and $matchedOma.Count -gt 0 -and $null -ne $matchedOma[0]) {
+            $omaId = [string]$matchedOma[0].id
+            $patchOmaUri = "$graphBaseUri/v1.0/deviceManagement/deviceConfigurations/$omaId"
+            $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchOmaUri -Body $omaPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+            $omaCreated = $false
+        } else {
+            $postOmaUri = "$graphBaseUri/v1.0/deviceManagement/deviceConfigurations"
+            $createdOma = Invoke-GraphRequest -Method 'POST' -Uri $postOmaUri -Body $omaPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+            $omaId = [string]$createdOma.id
+            $omaCreated = $true
+        }
+        $omaAssignPayload = New-GroupAssignmentPayload -PolicyObject $omaObj -TargetGroupId $targetDeviceGroupId -AssignmentFilterMap $assignmentFilterMap
+        $omaAssignUri = "$graphBaseUri/v1.0/deviceManagement/deviceConfigurations/$omaId/assign"
+        $null = Invoke-GraphRequest -Method 'POST' -Uri $omaAssignUri -Body $omaAssignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+
+        $deviceConfigPolicyIds += $omaId
+        $runManifestResources += [ordered]@{
+            resourceType = 'deviceConfiguration'
+            id           = $omaId
+            displayName  = $stampedOmaName
+            sourceFile   = $omaFile.Name
+            created      = $omaCreated
+            assignedTo   = $targetDeviceGroupId
+        }
+    }
+}
+
 # 4. Idempotent Compliance Policy deployment & assignment
 # Ensure tenant-wide 'no policy = noncompliant' (secureByDefault = true, avd-assess methods/intune.md step 6)
-$dmSettingsUri = "$graphBaseUri/v1.0/deviceManagement/settings"
+$dmUri = "$graphBaseUri/v1.0/deviceManagement"
+$dmSettingsUri = "$dmUri/settings"
 $dmSettings = Invoke-GraphRequest -Method 'GET' -Uri $dmSettingsUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 $isSecureByDefault = ($null -ne $dmSettings -and $null -ne $dmSettings.PSObject.Properties['secureByDefault'] -and $dmSettings.secureByDefault -eq $true)
 if (-not $isSecureByDefault) {
-    $null = Invoke-GraphRequest -Method 'PATCH' -Uri $dmSettingsUri -Body ([ordered]@{ secureByDefault = $true }) -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+    $null = Invoke-GraphRequest -Method 'PATCH' -Uri $dmUri -Body ([ordered]@{ settings = [ordered]@{ secureByDefault = $true } }) -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 }
 
 $compliancePolicyIds = @()
@@ -832,6 +885,26 @@ if ($IncludeWin365.IsPresent) {
         }
     }
 }
+} finally {
+    if ($runManifestResources.Count -gt 0) {
+        $partialManifest = [ordered]@{
+            schema                          = 'avd-ops-intune-run-manifest/v1'
+            stampPrefix                     = $stampPrefix
+            environment                     = $environment
+            cloud                           = $resolvedCloud
+            complianceProfile               = $resolvedComplianceProfile
+            prefix                          = $resolvedPrefix
+            targetDeviceGroupId             = $targetDeviceGroupId
+            avdUsersGroupId                 = $avdUsersGroupId
+            tenantComplianceSecureByDefault = $true
+            generatedAtUtc                  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            dryRun                          = [bool]$isDryRun
+            resources                       = $runManifestResources
+        }
+        $partialJson = $partialManifest | ConvertTo-Json -Depth 10
+        [System.IO.File]::WriteAllText($RunManifestPath, $partialJson + "`n", [System.Text.UTF8Encoding]::new($false))
+    }
+}
 
 # 5. Write intune-run-manifest.json and intune-manifest.json
 $runManifest = [ordered]@{
@@ -860,6 +933,9 @@ $handoffManifest = [ordered]@{
     targetDeviceGroupId     = $targetDeviceGroupId
     settingsCatalogProfiles = @($settingsCatalogPolicyIds)
     compliancePolicyId      = [string]$compliancePolicyIds[0]
+}
+if ($deviceConfigPolicyIds.Count -gt 0) {
+    $handoffManifest['deviceConfigurationProfiles'] = @($deviceConfigPolicyIds)
 }
 if ($assignmentFilterMap.Count -gt 0) {
     $handoffManifest['assignmentFilters'] = $assignmentFilterMap

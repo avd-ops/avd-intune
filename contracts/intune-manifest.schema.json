@@ -48,6 +48,12 @@
         "type": "string"
       }
     },
+    "deviceConfigurationProfiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "compliancePolicyId": {
       "type": "string"
     },

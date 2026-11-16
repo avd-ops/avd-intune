@@ -61,12 +61,18 @@ class TestAvdIntune(unittest.TestCase):
                     all_setting_ids.add(s["settingId"])
                 elif "settingInstance" in s:
                     all_setting_ids.add(s["settingInstance"].get("settingDefinitionId", ""))
+        oma_dir = PROFILES_DIR / "custom-oma-uri"
+        if oma_dir.is_dir():
+            for f in sorted(oma_dir.glob("*.json")):
+                data = json.loads(f.read_text(encoding="utf-8"))
+                for o in data.get("omaSettings", []):
+                    if "omaUri" in o:
+                        all_setting_ids.add(o["omaUri"])
 
         joined = " ".join(all_setting_ids)
         self.assertIn("fslogix", joined.lower(), "FSLogix settings must be present")
-        self.assertIn("rdpshortpath_enable", joined.lower(), "RDP Shortpath setting must be present")
-        self.assertIn("avd_mmr_enable", joined.lower(), "Multimedia redirection (MMR) must be present")
-        self.assertIn("setdisconnectedtimelimit", joined.lower(), "Session timeout limit must be present")
+        self.assertIn("ts_client_turn_off_udp", joined.lower(), "RDP UDP/Shortpath setting must be present")
+        self.assertIn("ts_sessions_disconnected_timeout_2", joined.lower(), "Session timeout limit must be present")
         self.assertIn("deferqualityupdatesperiodindays", joined.lower(), "Windows Update ring settings must be present")
         self.assertIn("defender_allowrealtimemonitoring", joined.lower(), "Defender Antivirus baseline must be present")
         self.assertIn("defender_excludedpaths", joined.lower(), "Defender FSLogix/AVD exclusions must be present")
@@ -130,7 +136,8 @@ class TestAvdIntune(unittest.TestCase):
                 intune_manifest["targetDeviceGroupId"],
                 "00000000-0000-0000-0000-000000000012",
             )
-            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 6)
+            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 5)
+            self.assertEqual(len(intune_manifest["deviceConfigurationProfiles"]), 1)
             self.assertTrue(intune_manifest["compliancePolicyId"])
 
             run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
@@ -156,6 +163,7 @@ class TestAvdIntune(unittest.TestCase):
 $ErrorActionPreference = 'Stop'
 $store = @{{
     configurationPolicies = @{{}}
+    deviceConfigurations = @{{}}
     deviceCompliancePolicies = @{{}}
     secureByDefault = $false
 }}
@@ -204,6 +212,20 @@ $invoker = ({{
     if ($Method -eq 'PATCH' -and $Uri -like '*/configurationPolicies/*') {{
         return [pscustomobject]@{{ status = 'updated' }}
     }}
+    if ($Method -eq 'GET' -and $Uri -like '*/deviceConfigurations?*$filter=*') {{
+        $vals = @($store.deviceConfigurations.Values)
+        return [pscustomobject]@{{ value = $vals }}
+    }}
+    if ($Method -eq 'POST' -and $Uri -eq 'https://graph.microsoft.com/v1.0/deviceManagement/deviceConfigurations') {{
+        $state.counter++
+        $id = "00000000-0000-0000-0000-000000000$($state.counter)"
+        $obj = [pscustomobject]@{{ id = $id; displayName = [string]$Body['displayName'] }}
+        $store.deviceConfigurations[$id] = $obj
+        return $obj
+    }}
+    if ($Method -eq 'PATCH' -and $Uri -like '*/deviceConfigurations/*') {{
+        return [pscustomobject]@{{ status = 'updated' }}
+    }}
     if ($Method -eq 'GET' -and $Uri -like '*/deviceCompliancePolicies?*$filter=*') {{
         $vals = @($store.deviceCompliancePolicies.Values)
         return [pscustomobject]@{{ value = $vals }}
@@ -221,8 +243,8 @@ $invoker = ({{
     if ($Method -eq 'GET' -and $Uri -like '*/deviceManagement/settings*') {{
         return [pscustomobject]@{{ secureByDefault = $store.secureByDefault }}
     }}
-    if ($Method -eq 'PATCH' -and $Uri -like '*/deviceManagement/settings*') {{
-        $store.secureByDefault = [bool]$Body['secureByDefault']
+    if ($Method -eq 'PATCH' -and $Uri -match '/deviceManagement$') {{
+        $store.secureByDefault = [bool]$Body['settings']['secureByDefault']
         return [pscustomobject]@{{ secureByDefault = $store.secureByDefault }}
     }}
     if ($Method -eq 'POST' -and $Uri -like '*/assign') {{
@@ -279,10 +301,10 @@ $run2 = Get-Content -LiteralPath '{run_path}' -Raw | ConvertFrom-Json
             self.assertEqual(len(assign_calls), 14)
             settings_patches = [
                 c for c in result["calls"]
-                if c["method"] == "PATCH" and c["uri"].endswith("/deviceManagement/settings")
+                if c["method"] == "PATCH" and c["uri"].endswith("/deviceManagement")
             ]
             self.assertEqual(len(settings_patches), 1)
-            self.assertTrue(settings_patches[0]["body"]["secureByDefault"])
+            self.assertTrue(settings_patches[0]["body"]["settings"]["secureByDefault"])
             self.assertTrue(result["run1"]["tenantComplianceSecureByDefault"])
             for ac in assign_calls:
                 target = ac["body"]["assignments"][0]["target"]
@@ -589,7 +611,7 @@ $uris | ConvertTo-Json | Set-Content -LiteralPath '{uris_path}' -Encoding UTF8
             intune_manifest = json.loads(intune_path.read_text(encoding="utf-8"))
             self.assertEqual(intune_manifest["cloud"], "usgov")
             self.assertEqual(intune_manifest["complianceProfile"], "itar-cui")
-            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 7)
+            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 6)
 
             run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
             self.assertEqual(run_manifest["cloud"], "usgov")
