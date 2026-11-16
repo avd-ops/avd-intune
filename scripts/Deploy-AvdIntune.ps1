@@ -542,8 +542,8 @@ if ($useAssignmentFilters) {
                 platform    = [string]$filterObj.platform
                 rule        = [string]$filterObj.rule
             }
-            $escapedFilterName = $stampedFilterName.Replace("'", "''")
-            $filterQueryUri = "$graphBaseUri/beta/deviceManagement/assignmentFilters?`$filter=displayName eq '$escapedFilterName'"
+            # Graph assignmentFilters does not support OData $filter=displayName; list and filter client-side.
+            $filterQueryUri = "$graphBaseUri/beta/deviceManagement/assignmentFilters"
             $existingFilterResp = Invoke-GraphRequest -Method 'GET' -Uri $filterQueryUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
             $matchedFilter = $null
             if ($null -ne $existingFilterResp -and $null -ne $existingFilterResp.PSObject.Properties['value']) {
@@ -554,7 +554,12 @@ if ($useAssignmentFilters) {
             if ($null -ne $matchedFilter -and $matchedFilter.Count -gt 0 -and $null -ne $matchedFilter[0]) {
                 $filterId = [string]$matchedFilter[0].id
                 $patchFilterUri = "$graphBaseUri/beta/deviceManagement/assignmentFilters/$filterId"
-                $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchFilterUri -Body $filterPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+                $patchFilterPayload = [ordered]@{
+                    displayName = $stampedFilterName
+                    description = [string]$filterObj.description
+                    rule        = [string]$filterObj.rule
+                }
+                $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchFilterUri -Body $patchFilterPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
                 $filterCreated = $false
             } else {
                 $postFilterUri = "$graphBaseUri/beta/deviceManagement/assignmentFilters"
@@ -582,7 +587,8 @@ foreach ($profileFile in $settingsCatalogFiles) {
     $payload = ConvertTo-GraphConfigurationPolicyPayload -ProfileObject $profileObj -StampedName $stampedName
 
     $escapedName = $stampedName.Replace("'", "''")
-    $filterUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies?`$filter=name eq '$escapedName'"
+    $encodedFilter = [System.Uri]::EscapeDataString("name eq '$escapedName'")
+    $filterUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies?`$filter=$encodedFilter"
     $existingResp = Invoke-GraphRequest -Method 'GET' -Uri $filterUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 
     $matchedPolicy = $null
