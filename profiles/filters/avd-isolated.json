@@ -1,0 +1,6 @@
+{
+  "displayName": "[avd-ops] AVD Isolated Single-Session Hosts",
+  "description": "Targets isolated single-session ephemeral AVD session hosts for bounded automation or high-isolation workloads.",
+  "platform": "windows10AndLater",
+  "rule": "(device.osSku -ne \"ServerRdsh\") and (device.deviceName -startsWith \"avd-iso-\")"
+}

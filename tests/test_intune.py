@@ -516,16 +516,16 @@ $summary = & '{SCRIPTS_DIR / "Remove-AvdIntune.ps1"}' `
             self.assertIn("assignmentFilters", intune_manifest)
             self.assertEqual(
                 set(intune_manifest["assignmentFilters"].keys()),
-                {"avd-multisession", "avd-personal", "win365-cloudpc", "physical-desktop"},
+                {"avd-multisession", "avd-personal", "avd-isolated", "win365-cloudpc", "physical-desktop"},
             )
             self.assertIn("win365", intune_manifest)
             self.assertEqual(len(intune_manifest["win365"]["provisioningPolicyIds"]), 1)
             self.assertEqual(len(intune_manifest["win365"]["userSettingsIds"]), 1)
 
             run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
-            self.assertEqual(len(run_manifest["resources"]), 13)
+            self.assertEqual(len(run_manifest["resources"]), 14)
             resource_types = [r["resourceType"] for r in run_manifest["resources"]]
-            self.assertEqual(resource_types.count("assignmentFilter"), 4)
+            self.assertEqual(resource_types.count("assignmentFilter"), 5)
             self.assertEqual(resource_types.count("cloudPcProvisioningPolicy"), 1)
             self.assertEqual(resource_types.count("cloudPcUserSetting"), 1)
 
