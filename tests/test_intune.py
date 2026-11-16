@@ -810,12 +810,12 @@ $calls | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath '{calls_path}' -Enc
                 assign_call = next(
                     c for c in calls if c["uri"].endswith(f"/configurationPolicies/{policy_id}/assign")
                 )
-                assigned_filter_ids = {
-                    a["target"]["deviceAndAppManagementAssignmentFilterId"]
-                    for a in assign_call["body"]["assignments"]
-                }
-                self.assertEqual(assigned_filter_ids, expected_vdi_filters)
-                self.assertNotIn(physical_filter_id, assigned_filter_ids)
+                assignments = assign_call["body"]["assignments"]
+                group_ids = [a["target"]["groupId"] for a in assignments]
+                self.assertEqual(len(group_ids), len(set(group_ids)), "Intune /assign rejects duplicate groupId targets")
+                self.assertEqual(len(assignments), 1)
+                self.assertEqual(assignments[0]["target"]["deviceAndAppManagementAssignmentFilterId"], physical_filter_id)
+                self.assertEqual(assignments[0]["target"]["deviceAndAppManagementAssignmentFilterType"], "exclude")
 
     def test_evergreen_app_manifest_and_sync_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -922,6 +922,7 @@ $resolver = {{
         deploy_src = (ROOT / "scripts" / "Deploy-AvdIntune.ps1").read_text(encoding="utf-8")
         self.assertNotIn("assignmentFilters?`$filter=", deploy_src)
         self.assertIn("EscapeDataString(\"name eq '$escapedName'\")", deploy_src)
+        self.assertIn("$patchPayload = [ordered]@{", deploy_src)
 
         phys = json.loads((ROOT / "profiles" / "filters" / "physical-desktop.json").read_text(encoding="utf-8"))
         self.assertNotIn("not (device.model", phys["rule"])
