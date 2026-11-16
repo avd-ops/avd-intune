@@ -5,5 +5,18 @@
   "antivirusRequired": true,
   "bitLockerEnabled": false,
   "storageRequireEncryption": true,
-  "secureBootEnabled": true
+  "secureBootEnabled": true,
+  "scheduledActionsForRule": [
+    {
+      "@odata.type": "#microsoft.graph.deviceComplianceScheduledActionForRule",
+      "ruleName": "PasswordRequired",
+      "scheduledActionConfigurations": [
+        {
+          "@odata.type": "#microsoft.graph.deviceComplianceActionItem",
+          "actionType": "block",
+          "gracePeriodHours": 0
+        }
+      ]
+    }
+  ]
 }
