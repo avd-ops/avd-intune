@@ -901,6 +901,22 @@ $resolver = {{
             )
             self.assertNotEqual(bad_proc.returncode, 0, "Expected non-zero exit when no items match evergreenFilter")
 
+    def test_persistent_host_wau_manifest(self) -> None:
+        wau_path = PROFILES_DIR / "apps" / "persistent-host-wau.json"
+        self.assertTrue(wau_path.exists(), "persistent-host-wau.json must exist")
+        wau = json.loads(wau_path.read_text(encoding="utf-8"))
+        self.assertEqual(wau["upstream"]["license"], "MIT")
+        self.assertIn("avd-personal", wau["targetFilters"])
+        self.assertIn("win365-cloudpc", wau["targetFilters"])
+        self.assertNotIn("avd-multisession", wau["targetFilters"])
+        self.assertIn("avd-multisession", wau["excludedFilters"])
+        self.assertEqual(len(wau["apps"]), 1)
+        self.assertEqual(wau["apps"][0]["id"], "winget-autoupdate")
+        self.assertEqual(wau["apps"][0]["installContext"], "system")
+        self.assertEqual(wau["apps"][0]["intent"], "required")
+        self.assertEqual(wau["apps"][0]["targetType"], "deviceGroup")
+        self.assertEqual(wau["psadtInterop"]["mode"], "invoke-only")
+
 
 if __name__ == "__main__":
     unittest.main()
