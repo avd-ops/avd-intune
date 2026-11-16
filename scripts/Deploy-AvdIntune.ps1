@@ -623,10 +623,8 @@ foreach ($profileFile in $settingsCatalogFiles) {
         $policyId = [string]$matchedPolicy[0].id
         $patchUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies/$policyId"
         $patchPayload = [ordered]@{
-            name         = $payload.name
-            description  = $payload.description
-            platforms    = $payload.platforms
-            technologies = $payload.technologies
+            name        = $payload.name
+            description = $payload.description
         }
         $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchUri -Body $patchPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $wasCreated = $false
