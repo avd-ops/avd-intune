@@ -25,8 +25,8 @@ Desktop DevOps endpoint configuration and Windows 365 Cloud PC control plane (`a
 ## What it does
 
 - Configures Microsoft Intune MDM auto-enrollment scope and Windows Enterprise multi-session enrollment rules.
-- Deploys declarative Settings Catalog profiles for AVD session hosts (FSLogix settings, RDP Shortpath, multimedia redirection, session timeouts, Windows Update rings).
-- Deploys platform assignment filters (`avd-multisession`, `avd-personal`, `win365-cloudpc`, `physical-desktop`) via `-DeployAssignmentFilters` so multi-session, Cloud PC, and physical device policies stay cleanly separated.
+- Deploys declarative Settings Catalog profiles for AVD session hosts (FSLogix settings, RDP Shortpath, multimedia redirection, session timeouts, Windows Update rings, and Microsoft Defender Antivirus, FSLogix/AVD exclusions, and VDI-tuned ASR rules).
+- Deploys platform assignment filters (`avd-multisession`, `avd-personal`, `win365-cloudpc`, `physical-desktop`) via `-DeployAssignmentFilters` so multi-session, Cloud PC, and physical device policies stay cleanly separated. Defender endpoint security profiles target `avd-multisession`, `avd-personal`, and `win365-cloudpc` without affecting `physical-desktop`.
 - Deploys declarative Windows 365 Cloud PC provisioning policies (`enableSingleSignOn: true`) and least-privilege user settings (`localAdminEnabled: false`, 4-hour restore points) via `-IncludeWin365`, and checks Azure Network Connection (`onPremisesConnections`) health.
 - Applies session-host and Cloud PC device compliance policies paired with [avd-entra](https://github.com/avd-ops/avd-entra#readme) Conditional Access.
 - Assigns core host applications to the dynamic session-host and Cloud PC device groups from [avd-entra](https://github.com/avd-ops/avd-entra#readme).
@@ -38,6 +38,7 @@ Consumes `entra-manifest.json` device and user group targets and produces `intun
 
 ## Docs
 
+- Endpoint security policies, coexistence, first-boot EDR onboarding, and control-plane boundaries: [docs/endpoint-security.md](docs/endpoint-security.md) (`avd-intune` delivers endpoint policies; Defender for Cloud enablement stays in `avd-azure` / `avd-landing-zone` via `enableDefenderForCloud`; MDE/Defender XDR tenant-wide admin config and SOAR stay outside this repo)
 - Agent instructions & guardrails: [AGENTS.md](AGENTS.md)
 - Repo page on avd-ops: [avd-ops.dev/docs/repos/avd-intune](https://avd-ops.dev/docs/repos/avd-intune.html)
 

@@ -57,7 +57,10 @@ class TestAvdIntune(unittest.TestCase):
         for f in files:
             data = json.loads(f.read_text(encoding="utf-8"))
             for s in data.get("settings", []):
-                all_setting_ids.add(s.get("settingId", ""))
+                if "settingId" in s:
+                    all_setting_ids.add(s["settingId"])
+                elif "settingInstance" in s:
+                    all_setting_ids.add(s["settingInstance"].get("settingDefinitionId", ""))
 
         joined = " ".join(all_setting_ids)
         self.assertIn("fslogix", joined.lower(), "FSLogix settings must be present")
@@ -65,6 +68,9 @@ class TestAvdIntune(unittest.TestCase):
         self.assertIn("avd_mmr_enable", joined.lower(), "Multimedia redirection (MMR) must be present")
         self.assertIn("setdisconnectedtimelimit", joined.lower(), "Session timeout limit must be present")
         self.assertIn("deferqualityupdatesperiodindays", joined.lower(), "Windows Update ring settings must be present")
+        self.assertIn("defender_allowrealtimemonitoring", joined.lower(), "Defender Antivirus baseline must be present")
+        self.assertIn("defender_excludedpaths", joined.lower(), "Defender FSLogix/AVD exclusions must be present")
+        self.assertIn("defender_attacksurfacereductionrules", joined.lower(), "Defender ASR rules must be present")
 
     def test_manifest_schema_validation_rejects_invalid_payloads(self) -> None:
         schema = json.loads((ROOT / "contracts" / "intune-manifest.schema.json").read_text(encoding="utf-8"))
@@ -123,12 +129,12 @@ class TestAvdIntune(unittest.TestCase):
                 intune_manifest["targetDeviceGroupId"],
                 "00000000-0000-0000-0000-000000000012",
             )
-            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 3)
+            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 6)
             self.assertTrue(intune_manifest["compliancePolicyId"])
 
             run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
             self.assertEqual(run_manifest["stampPrefix"], "[avd-ops-contoso-dev]")
-            self.assertEqual(len(run_manifest["resources"]), 4)
+            self.assertEqual(len(run_manifest["resources"]), 7)
             for res in run_manifest["resources"]:
                 self.assertTrue(res["displayName"].startswith("[avd-ops-contoso-dev] "))
                 self.assertTrue(res["created"])
@@ -261,7 +267,7 @@ $run2 = Get-Content -LiteralPath '{run_path}' -Raw | ConvertFrom-Json
             )
 
             assign_calls = [c for c in result["calls"] if c["uri"].endswith("/assign")]
-            self.assertEqual(len(assign_calls), 8)
+            self.assertEqual(len(assign_calls), 14)
             for ac in assign_calls:
                 target = ac["body"]["assignments"][0]["target"]
                 self.assertEqual(target["@odata.type"], "#microsoft.graph.groupAssignmentTarget")
@@ -479,7 +485,7 @@ $summary = & '{SCRIPTS_DIR / "Remove-AvdIntune.ps1"}' `
             self.assertEqual(len(intune_manifest["win365"]["userSettingsIds"]), 1)
 
             run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
-            self.assertEqual(len(run_manifest["resources"]), 10)
+            self.assertEqual(len(run_manifest["resources"]), 13)
             resource_types = [r["resourceType"] for r in run_manifest["resources"]]
             self.assertEqual(resource_types.count("assignmentFilter"), 4)
             self.assertEqual(resource_types.count("cloudPcProvisioningPolicy"), 1)
@@ -567,7 +573,7 @@ $uris | ConvertTo-Json | Set-Content -LiteralPath '{uris_path}' -Encoding UTF8
             intune_manifest = json.loads(intune_path.read_text(encoding="utf-8"))
             self.assertEqual(intune_manifest["cloud"], "usgov")
             self.assertEqual(intune_manifest["complianceProfile"], "itar-cui")
-            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 4)
+            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 7)
 
             run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
             self.assertEqual(run_manifest["cloud"], "usgov")
@@ -701,6 +707,99 @@ $uris | ConvertTo-Json | Set-Content -LiteralPath '{uris_path}' -Encoding UTF8
             0,
             f"tests/UsGovCloud.Tests.ps1 failed:\n{proc.stderr}\n{proc.stdout}",
         )
+
+    def test_defender_policies_target_vdi_filters_without_physical_desktop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            entra_path = tmp_path / "entra-manifest.json"
+            intune_path = tmp_path / "intune-manifest.json"
+            run_path = tmp_path / "intune-run-manifest.json"
+            calls_path = tmp_path / "graph-calls.json"
+            entra_path.write_text(json.dumps(SAMPLE_ENTRA_MANIFEST), encoding="utf-8")
+
+            ps_script = tmp_path / "run-defender-filters.ps1"
+            ps_script.write_text(
+                f"""
+$ErrorActionPreference = 'Stop'
+$calls = [System.Collections.Generic.List[object]]::new()
+$state = @{{ counter = 100 }}
+$invoker = ({{
+    param($Method, $Uri, $Body)
+    $calls.Add([ordered]@{{ method = $Method; uri = $Uri; body = $Body }})
+    if ($Method -eq 'GET' -and $Uri -like '*/subscribedSkus*') {{
+        return [pscustomobject]@{{
+            value = @([pscustomobject]@{{
+                skuPartNumber = 'SPE_E5'
+                capabilityStatus = 'Enabled'
+                servicePlans = @([pscustomobject]@{{
+                    servicePlanName = 'INTUNE_A'
+                    provisioningStatus = 'Success'
+                }})
+            }})
+        }}
+    }}
+    if ($Method -eq 'GET') {{
+        return [pscustomobject]@{{ value = @() }}
+    }}
+    if ($Method -eq 'POST' -and $Uri -notlike '*/assign') {{
+        $state.counter++
+        $id = "00000000-0000-0000-0000-000000000$($state.counter)"
+        return [pscustomobject]@{{ id = $id }}
+    }}
+    return [pscustomobject]@{{ status = 'ok' }}
+}}).GetNewClosure()
+
+& '{SCRIPTS_DIR / "Deploy-AvdIntune.ps1"}' `
+    -EntraManifestPath '{entra_path}' `
+    -OutputPath '{intune_path}' `
+    -RunManifestPath '{run_path}' `
+    -DeployAssignmentFilters `
+    -GraphInvoker $invoker
+
+$calls | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath '{calls_path}' -Encoding UTF8
+""",
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                ["pwsh", "-NoProfile", "-File", str(ps_script)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, f"Defender filter deploy failed:\n{proc.stderr}\n{proc.stdout}")
+
+            intune_manifest = json.loads(intune_path.read_text(encoding="utf-8"))
+            filters = intune_manifest["assignmentFilters"]
+            expected_vdi_filters = {
+                filters["avd-multisession"],
+                filters["avd-personal"],
+                filters["win365-cloudpc"],
+            }
+            physical_filter_id = filters["physical-desktop"]
+
+            run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
+            defender_ids = {
+                r["id"]
+                for r in run_manifest["resources"]
+                if r["sourceFile"] in {
+                    "avd-defender-antivirus-baseline.json",
+                    "avd-defender-fslogix-exclusions.json",
+                    "avd-defender-asr-rules.json",
+                }
+            }
+            self.assertEqual(len(defender_ids), 3)
+
+            calls = json.loads(calls_path.read_text(encoding="utf-8"))
+            for policy_id in defender_ids:
+                assign_call = next(
+                    c for c in calls if c["uri"].endswith(f"/configurationPolicies/{policy_id}/assign")
+                )
+                assigned_filter_ids = {
+                    a["target"]["deviceAndAppManagementAssignmentFilterId"]
+                    for a in assign_call["body"]["assignments"]
+                }
+                self.assertEqual(assigned_filter_ids, expected_vdi_filters)
+                self.assertNotIn(physical_filter_id, assigned_filter_ids)
 
 
 if __name__ == "__main__":
