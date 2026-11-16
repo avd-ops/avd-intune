@@ -918,6 +918,22 @@ $resolver = {{
         self.assertEqual(wau["psadtInterop"]["mode"], "invoke-only")
 
 
+    def test_live_graph_filter_and_defender_schema_guards(self) -> None:
+        deploy_src = (ROOT / "scripts" / "Deploy-AvdIntune.ps1").read_text(encoding="utf-8")
+        self.assertNotIn("assignmentFilters?`$filter=", deploy_src)
+        self.assertIn("EscapeDataString(\"name eq '$escapedName'\")", deploy_src)
+
+        phys = json.loads((ROOT / "profiles" / "filters" / "physical-desktop.json").read_text(encoding="utf-8"))
+        self.assertNotIn("not (device.model", phys["rule"])
+
+        defender = json.loads(
+            (ROOT / "profiles" / "settings-catalog" / "avd-defender-antivirus-baseline.json").read_text(encoding="utf-8")
+        )
+        by_id = {s["settingId"]: s["value"] for s in defender["settings"]}
+        self.assertIsInstance(by_id["device_vendor_msft_policy_config_defender_allowrealtimemonitoring"], str)
+        self.assertNotIn("device_vendor_msft_policy_config_defender_randomizescheduledtasktimes", by_id)
+
+
 if __name__ == "__main__":
     unittest.main()
 
