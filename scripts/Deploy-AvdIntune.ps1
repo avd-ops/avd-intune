@@ -622,7 +622,13 @@ foreach ($profileFile in $settingsCatalogFiles) {
     if ($null -ne $matchedPolicy -and $matchedPolicy.Count -gt 0 -and $null -ne $matchedPolicy[0]) {
         $policyId = [string]$matchedPolicy[0].id
         $patchUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies/$policyId"
-        $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchUri -Body $payload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+        $patchPayload = [ordered]@{
+            name         = $payload.name
+            description  = $payload.description
+            platforms    = $payload.platforms
+            technologies = $payload.technologies
+        }
+        $null = Invoke-GraphRequest -Method 'PATCH' -Uri $patchUri -Body $patchPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
         $wasCreated = $false
     } else {
         $postUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies"

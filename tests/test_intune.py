@@ -922,6 +922,7 @@ $resolver = {{
         deploy_src = (ROOT / "scripts" / "Deploy-AvdIntune.ps1").read_text(encoding="utf-8")
         self.assertNotIn("assignmentFilters?`$filter=", deploy_src)
         self.assertIn("EscapeDataString(\"name eq '$escapedName'\")", deploy_src)
+        self.assertIn("$patchPayload = [ordered]@{", deploy_src)
 
         phys = json.loads((ROOT / "profiles" / "filters" / "physical-desktop.json").read_text(encoding="utf-8"))
         self.assertNotIn("not (device.model", phys["rule"])
