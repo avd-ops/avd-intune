@@ -14,6 +14,8 @@ param(
     [Parameter()][ValidateSet('anc', 'mhn')][string]$Win365NetworkMode = '',
     [Parameter()][ValidateSet('enterprise', 'frontlineDedicated', 'frontlineShared')][string]$Win365ProvisioningMode = 'enterprise',
     [Parameter()][switch]$IncludeGpuProfile,
+    [Parameter()][switch]$SyncApps,
+    [Parameter()][string]$AppsOutputPath = './evergreen-apps-resolved.json',
     [Parameter()][switch]$DryRun,
     [Parameter()][scriptblock]$GraphInvoker
 )
@@ -846,4 +848,11 @@ $validateScript = Join-Path $PSScriptRoot 'validate.py'
 & $pythonExe $validateScript --manifest $OutputPath
 if ($LASTEXITCODE -ne 0) {
     throw "Contract validation failed for '$OutputPath'."
+}
+
+if ($SyncApps.IsPresent) {
+    $syncScript = Join-Path $PSScriptRoot 'Sync-EvergreenApps.ps1'
+    $syncParams = @{ OutputPath = $AppsOutputPath }
+    if ($isDryRun) { $syncParams['DryRun'] = $true }
+    & $syncScript @syncParams
 }

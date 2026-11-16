@@ -843,6 +843,64 @@ $calls | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath '{calls_path}' -Enc
                 self.assertEqual(app["intent"], "required")
                 self.assertEqual(app["targetType"], "deviceGroup")
 
+    def test_sync_evergreen_apps_filters_and_rejects_empty_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "evergreen-apps-resolved.json"
+            wrapper = Path(tmp) / "run_sync.ps1"
+            wrapper.write_text(
+                f"""
+$resolver = {{
+    param($app)
+    switch ($app.evergreenApp) {{
+        'MicrosoftEdge' {{
+            @(
+                [pscustomobject]@{{ Architecture='x86'; Channel='Stable'; Release='Enterprise'; Version='1.0'; URI='https://example.invalid/x86.msi' }},
+                [pscustomobject]@{{ Architecture='x64'; Channel='Stable'; Release='Enterprise'; Version='130.0.1'; URI='https://example.invalid/edge-x64.msi'; Sha256='abc123' }}
+            )
+        }}
+        'MicrosoftTeams' {{
+            @([pscustomobject]@{{ Architecture='x64'; Type='msi'; Version='24277.0'; URI='https://example.invalid/teams.msi' }})
+        }}
+        'MicrosoftFSLogixApps' {{
+            @([pscustomobject]@{{ Channel='Production'; Version='2.9.8884'; URI='https://example.invalid/fslogix.zip' }})
+        }}
+        'MicrosoftRdcwebrtcredirdor' {{
+            @([pscustomobject]@{{ Architecture='x64'; Version='1.50.0'; URI='https://example.invalid/webrtc.msi' }})
+        }}
+        'VcRedist' {{
+            @([pscustomobject]@{{ Release='2022'; Architecture='x64'; Version='14.40.33810'; URI='https://example.invalid/vcredist.exe' }})
+        }}
+    }}
+}}
+& '{SCRIPTS_DIR / "Sync-EvergreenApps.ps1"}' -OutputPath '{out_path}' -AppResolver $resolver
+""",
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                ["pwsh", "-NoProfile", "-File", str(wrapper)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, f"Filtered sync failed:\n{proc.stderr}\n{proc.stdout}")
+            data = json.loads(out_path.read_text(encoding="utf-8"))
+            edge = next(a for a in data["apps"] if a["id"] == "microsoft-edge-enterprise")
+            self.assertEqual(edge["version"], "130.0.1")
+            self.assertEqual(edge["sha256"], "abc123")
+
+            bad_wrapper = Path(tmp) / "run_bad.ps1"
+            bad_wrapper.write_text(
+                f"& '{SCRIPTS_DIR / 'Sync-EvergreenApps.ps1'}' -OutputPath '{out_path}' -AppResolver {{ param($app) @() }}",
+                encoding="utf-8",
+            )
+            bad_proc = subprocess.run(
+                ["pwsh", "-NoProfile", "-File", str(bad_wrapper)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(bad_proc.returncode, 0, "Expected non-zero exit when no items match evergreenFilter")
+
 
 if __name__ == "__main__":
     unittest.main()

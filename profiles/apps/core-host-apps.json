@@ -1,10 +1,10 @@
 {
-  "name": "[avd-ops] AVD & Cloud PC Core Host Apps (Evergreen / PackageFactory)",
-  "description": "Declarative core host application manifest for AVD session hosts and Windows 365 Cloud PCs. Enforces system-context, Required, device-targeted deployment per avd-assess methods/intune.md step 8, using EUCPilots Evergreen and PackageFactory as upstream sources of truth.",
+  "name": "[avd-ops] AVD & Cloud PC Core Host Apps (EUCPilots Evergreen)",
+  "description": "Declarative core host application manifest for AVD session hosts and Windows 365 Cloud PCs. Enforces system-context, Required, device-targeted deployment per avd-assess methods/intune.md step 8, using MIT-licensed EUCPilots Evergreen and VcRedist as upstream sources.",
   "upstream": {
     "evergreen": "https://github.com/EUCPilots/evergreen-module",
-    "packageFactory": "https://github.com/EUCPilots/packagefactory",
-    "vcredist": "https://github.com/EUCPilots/vcredist"
+    "vcredist": "https://github.com/EUCPilots/vcredist",
+    "evergreenPackagesReference": "https://github.com/EUCPilots/evergreen-packages"
   },
   "targetFilters": [
     "avd-multisession",
