@@ -1,0 +1,29 @@
+name: evergreen-sync
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install EUCPilots Evergreen and VcRedist modules
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Evergreen, VcRedist -Scope CurrentUser -Force
+      - name: Resolve core host apps via Evergreen and VcRedist
+        shell: pwsh
+        run: |
+          ./scripts/Sync-EvergreenApps.ps1 -OutputPath ./evergreen-apps-resolved.json
+      - name: Upload resolved app manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: evergreen-apps-resolved
+          path: evergreen-apps-resolved.json
