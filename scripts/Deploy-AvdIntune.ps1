@@ -618,6 +618,14 @@ foreach ($profileFile in $settingsCatalogFiles) {
 }
 
 # 4. Idempotent Compliance Policy deployment & assignment
+# Ensure tenant-wide 'no policy = noncompliant' (secureByDefault = true, avd-assess methods/intune.md step 6)
+$dmSettingsUri = "$graphBaseUri/v1.0/deviceManagement/settings"
+$dmSettings = Invoke-GraphRequest -Method 'GET' -Uri $dmSettingsUri -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+$isSecureByDefault = ($null -ne $dmSettings -and $null -ne $dmSettings.PSObject.Properties['secureByDefault'] -and $dmSettings.secureByDefault -eq $true)
+if (-not $isSecureByDefault) {
+    $null = Invoke-GraphRequest -Method 'PATCH' -Uri $dmSettingsUri -Body ([ordered]@{ secureByDefault = $true }) -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
+}
+
 $compliancePolicyIds = @()
 foreach ($compFile in $complianceFiles) {
     $compObj = Get-Content -LiteralPath $compFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -794,17 +802,18 @@ if ($IncludeWin365.IsPresent) {
 
 # 5. Write intune-run-manifest.json and intune-manifest.json
 $runManifest = [ordered]@{
-    schema              = 'avd-ops-intune-run-manifest/v1'
-    stampPrefix         = $stampPrefix
-    environment         = $environment
-    cloud               = $resolvedCloud
-    complianceProfile   = $resolvedComplianceProfile
-    prefix              = $resolvedPrefix
-    targetDeviceGroupId = $targetDeviceGroupId
-    avdUsersGroupId     = $avdUsersGroupId
-    generatedAtUtc      = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-    dryRun              = [bool]$isDryRun
-    resources           = $runManifestResources
+    schema                        = 'avd-ops-intune-run-manifest/v1'
+    stampPrefix                   = $stampPrefix
+    environment                   = $environment
+    cloud                         = $resolvedCloud
+    complianceProfile             = $resolvedComplianceProfile
+    prefix                        = $resolvedPrefix
+    targetDeviceGroupId           = $targetDeviceGroupId
+    avdUsersGroupId               = $avdUsersGroupId
+    tenantComplianceSecureByDefault = $true
+    generatedAtUtc                = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    dryRun                        = [bool]$isDryRun
+    resources                     = $runManifestResources
 }
 
 $runJson = $runManifest | ConvertTo-Json -Depth 10
