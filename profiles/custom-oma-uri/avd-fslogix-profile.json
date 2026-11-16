@@ -1,0 +1,41 @@
+{
+  "displayName": "[avd-ops] AVD FSLogix Profile Containers Baseline",
+  "description": "Declarative Custom OMA-URI baseline for FSLogix Profile Containers on Azure Virtual Desktop multi-session hosts (RoamIdentity=0).",
+  "omaSettings": [
+    {
+      "@odata.type": "#microsoft.graph.omaSettingInteger",
+      "displayName": "FSLogix Profiles Enabled",
+      "description": "Enable FSLogix Profile Containers.",
+      "omaUri": "./Device/Vendor/MSFT/Policy/Config/FSLogixv1~Policy~FSLogix_Profiles/ProfilesEnabled",
+      "value": 1
+    },
+    {
+      "@odata.type": "#microsoft.graph.omaSettingString",
+      "displayName": "FSLogix VHDLocations",
+      "description": "SMB path to the FSLogix profile container share.",
+      "omaUri": "./Device/Vendor/MSFT/Policy/Config/FSLogixv1~Policy~FSLogix_Profiles/ProfilesVHDLocations",
+      "value": "\\\\stfslogixcontoso.file.core.windows.net\\profiles"
+    },
+    {
+      "@odata.type": "#microsoft.graph.omaSettingInteger",
+      "displayName": "FSLogix DeleteLocalProfileWhenVHDShouldApply",
+      "description": "Remove local cached profile when VHD applies.",
+      "omaUri": "./Device/Vendor/MSFT/Policy/Config/FSLogixv1~Policy~FSLogix_Profiles/ProfilesDeleteLocalProfileWhenVHDShouldApply",
+      "value": 1
+    },
+    {
+      "@odata.type": "#microsoft.graph.omaSettingInteger",
+      "displayName": "FSLogix FlipFlopProfileDirectoryName",
+      "description": "Use username_SID directory naming.",
+      "omaUri": "./Device/Vendor/MSFT/Policy/Config/FSLogixv1~Policy~FSLogix_Profiles/ProfilesFlipFlopProfileDirectoryName",
+      "value": 1
+    },
+    {
+      "@odata.type": "#microsoft.graph.omaSettingInteger",
+      "displayName": "FSLogix RoamIdentity",
+      "description": "Keep Entra PRT/identity local to session host (RoamIdentity=0).",
+      "omaUri": "./Device/Vendor/MSFT/Policy/Config/FSLogixv1~Policy~FSLogix_Profiles/ProfilesRoamIdentity",
+      "value": 0
+    }
+  ]
+}

@@ -61,6 +61,13 @@ class TestAvdIntune(unittest.TestCase):
                     all_setting_ids.add(s["settingId"])
                 elif "settingInstance" in s:
                     all_setting_ids.add(s["settingInstance"].get("settingDefinitionId", ""))
+        oma_dir = PROFILES_DIR / "custom-oma-uri"
+        if oma_dir.is_dir():
+            for f in sorted(oma_dir.glob("*.json")):
+                data = json.loads(f.read_text(encoding="utf-8"))
+                for o in data.get("omaSettings", []):
+                    if "omaUri" in o:
+                        all_setting_ids.add(o["omaUri"])
 
         joined = " ".join(all_setting_ids)
         self.assertIn("fslogix", joined.lower(), "FSLogix settings must be present")
@@ -130,7 +137,8 @@ class TestAvdIntune(unittest.TestCase):
                 intune_manifest["targetDeviceGroupId"],
                 "00000000-0000-0000-0000-000000000012",
             )
-            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 6)
+            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 5)
+            self.assertEqual(len(intune_manifest["deviceConfigurationProfiles"]), 1)
             self.assertTrue(intune_manifest["compliancePolicyId"])
 
             run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
@@ -156,6 +164,7 @@ class TestAvdIntune(unittest.TestCase):
 $ErrorActionPreference = 'Stop'
 $store = @{{
     configurationPolicies = @{{}}
+    deviceConfigurations = @{{}}
     deviceCompliancePolicies = @{{}}
     secureByDefault = $false
 }}
@@ -202,6 +211,20 @@ $invoker = ({{
         return $obj
     }}
     if ($Method -eq 'PATCH' -and $Uri -like '*/configurationPolicies/*') {{
+        return [pscustomobject]@{{ status = 'updated' }}
+    }}
+    if ($Method -eq 'GET' -and $Uri -like '*/deviceConfigurations?*$filter=*') {{
+        $vals = @($store.deviceConfigurations.Values)
+        return [pscustomobject]@{{ value = $vals }}
+    }}
+    if ($Method -eq 'POST' -and $Uri -eq 'https://graph.microsoft.com/v1.0/deviceManagement/deviceConfigurations') {{
+        $state.counter++
+        $id = "00000000-0000-0000-0000-000000000$($state.counter)"
+        $obj = [pscustomobject]@{{ id = $id; displayName = [string]$Body['displayName'] }}
+        $store.deviceConfigurations[$id] = $obj
+        return $obj
+    }}
+    if ($Method -eq 'PATCH' -and $Uri -like '*/deviceConfigurations/*') {{
         return [pscustomobject]@{{ status = 'updated' }}
     }}
     if ($Method -eq 'GET' -and $Uri -like '*/deviceCompliancePolicies?*$filter=*') {{
@@ -589,7 +612,7 @@ $uris | ConvertTo-Json | Set-Content -LiteralPath '{uris_path}' -Encoding UTF8
             intune_manifest = json.loads(intune_path.read_text(encoding="utf-8"))
             self.assertEqual(intune_manifest["cloud"], "usgov")
             self.assertEqual(intune_manifest["complianceProfile"], "itar-cui")
-            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 7)
+            self.assertEqual(len(intune_manifest["settingsCatalogProfiles"]), 6)
 
             run_manifest = json.loads(run_path.read_text(encoding="utf-8"))
             self.assertEqual(run_manifest["cloud"], "usgov")
