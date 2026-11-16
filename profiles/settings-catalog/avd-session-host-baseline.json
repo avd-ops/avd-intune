@@ -1,36 +1,36 @@
 {
-  "name": "[avd-ops] AVD Multi-Session Host Baseline (RDP Shortpath, MMR, Session Limits)",
+  "name": "[avd-ops] AVD Multi-Session Host Baseline (RDP UDP, Session Limits)",
   "description": "Declarative Settings Catalog baseline for Azure Virtual Desktop Windows Enterprise multi-session hosts.",
   "platforms": "windows10",
   "technologies": "mdm",
   "settings": [
     {
-      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_limits_setdisconnectedtimelimit",
-      "value": "device_vendor_msft_policy_config_remotedesktopservices_limits_setdisconnectedtimelimit_1",
+      "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_disconnected_timeout_2",
+      "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_disconnected_timeout_2_1",
       "children": [
         {
-          "settingId": "disconnectedtimelimit_hours",
-          "value": 2
+          "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_disconnected_timeout_2_ts_disconnected",
+          "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_disconnected_timeout_2_ts_disconnected_7200000"
         }
       ]
     },
     {
-      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_limits_setidletimelimit",
-      "value": "device_vendor_msft_policy_config_remotedesktopservices_limits_setidletimelimit_1",
+      "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_timeout_2",
+      "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_timeout_2_1",
       "children": [
         {
-          "settingId": "idletimelimit_minutes",
-          "value": 60
+          "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_timeout_2_ts_idle",
+          "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_timeout_2_ts_idle_3600000"
         }
       ]
     },
     {
-      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_rdpshortpath_enable",
-      "value": "device_vendor_msft_policy_config_remotedesktopservices_rdpshortpath_enable_1"
+      "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_session_end_on_limit_2",
+      "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_session_end_on_limit_2_1"
     },
     {
-      "settingId": "device_vendor_msft_policy_config_remotedesktopservices_avd_mmr_enable",
-      "value": "device_vendor_msft_policy_config_remotedesktopservices_avd_mmr_enable_1"
+      "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_client_turn_off_udp",
+      "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_client_turn_off_udp_0"
     }
   ]
 }

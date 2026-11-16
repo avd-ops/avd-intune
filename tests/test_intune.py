@@ -71,9 +71,8 @@ class TestAvdIntune(unittest.TestCase):
 
         joined = " ".join(all_setting_ids)
         self.assertIn("fslogix", joined.lower(), "FSLogix settings must be present")
-        self.assertIn("rdpshortpath_enable", joined.lower(), "RDP Shortpath setting must be present")
-        self.assertIn("avd_mmr_enable", joined.lower(), "Multimedia redirection (MMR) must be present")
-        self.assertIn("setdisconnectedtimelimit", joined.lower(), "Session timeout limit must be present")
+        self.assertIn("ts_client_turn_off_udp", joined.lower(), "RDP UDP/Shortpath setting must be present")
+        self.assertIn("ts_sessions_disconnected_timeout_2", joined.lower(), "Session timeout limit must be present")
         self.assertIn("deferqualityupdatesperiodindays", joined.lower(), "Windows Update ring settings must be present")
         self.assertIn("defender_allowrealtimemonitoring", joined.lower(), "Defender Antivirus baseline must be present")
         self.assertIn("defender_excludedpaths", joined.lower(), "Defender FSLogix/AVD exclusions must be present")
