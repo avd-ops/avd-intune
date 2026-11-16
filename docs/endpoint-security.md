@@ -37,3 +37,10 @@ Per `avd-assess` `agents.edr-onboarding`:
 - **Never onboard the golden image** to Microsoft Defender for Endpoint (or a third-party EDR). Cloning an onboarded image causes duplicate or overwritten device identities in the EDR portal.
 - Run the MDE (or third-party EDR) onboarding script **at first boot** from the generalized image so each pooled or reimaged session host registers a single, unique device entry.
 - License multi-session session hosts through Defender for Servers (via Defender for Cloud `enableDefenderForCloud`) or eligible per-user VDI licensing.
+
+## Upstream Sources of Truth
+
+To avoid recreating generic Windows baselines or app packaging pipelines:
+
+- **Generic Windows & Cloud PC Settings Catalog baselines:** [SkipToTheEndpoint/OpenIntuneBaseline](https://github.com/SkipToTheEndpoint/OpenIntuneBaseline) (and Microsoft's versioned Intune Security Baselines) — `avd-intune` layers only the AVD/FSLogix/VDI-specific Defender, ASR, and exclusion deltas on top.
+- **App lifecycle, Win32 packaging & OS defaults:** [EUCPilots](https://github.com/EUCPilots) (`evergreen-module`, `vcredist`, `packagefactory`, `evergreen-packages`) and [aaronparker/defaults](https://github.com/aaronparker/defaults) / [remediations](https://github.com/aaronparker/remediations).
