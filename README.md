@@ -42,6 +42,13 @@ Consumes `entra-manifest.json` device and user group targets and produces `intun
 - Agent instructions & guardrails: [AGENTS.md](AGENTS.md)
 - Repo page on avd-ops: [avd-ops.dev/docs/repos/avd-intune](https://avd-ops.dev/docs/repos/avd-intune.html)
 
+## Upstream Sources of Truth
+
+`avd-intune` avoids recreating generic Windows baselines or app packaging tooling and focuses on **AVD, FSLogix, and Cloud PC deltas & orchestration**:
+
+- **Settings Catalog security baselines:** Reference [SkipToTheEndpoint/OpenIntuneBaseline](https://github.com/SkipToTheEndpoint/OpenIntuneBaseline) (Windows 10/11 and `WINDOWS365` Graph JSON baselines) and Microsoft's versioned Intune Security Baselines for generic OS/Defender hardening; `avd-intune` supplies the VDI/FSLogix deltas (FSLogix & `Microsoft RDInfra` exclusions, VDI scan/CPU throttling, RDP Shortpath, MMR, ITAR/CUI lockdown, and platform assignment filters).
+- **App lifecycle, Win32 packaging & OS defaults:** Reference [EUCPilots](https://github.com/EUCPilots) (`evergreen-module`, `vcredist`, `packagefactory`, `evergreen-packages`) and [aaronparker/defaults](https://github.com/aaronparker/defaults) / [remediations](https://github.com/aaronparker/remediations) instead of hand-rolling vendor downloaders or generic Win32 packaging pipelines.
+
 ## Contributing
 
 Fork it, open an issue or a pull request. Follow the family guardrails in [AGENTS.md](AGENTS.md): no tenant IDs, secrets, domains or customer names, and propose changes via pull request only. Contributions are accepted under the [MIT License](LICENSE).
