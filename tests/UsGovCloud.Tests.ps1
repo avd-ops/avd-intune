@@ -214,7 +214,7 @@ Describe 'US Gov / GCC High (C26) Static AST and Contract Guards' {
         $manifest = Get-Content -LiteralPath $outFile -Raw -Encoding UTF8 | ConvertFrom-Json
         $manifest.cloud | Should -Be 'usgov'
         $manifest.complianceProfile | Should -Be 'itar-cui'
-        $manifest.settingsCatalogProfiles.Count | Should -Be 4
+        $manifest.settingsCatalogProfiles.Count | Should -Be 7
 
         $runManifest = Get-Content -LiteralPath $runFile -Raw -Encoding UTF8 | ConvertFrom-Json
         $runManifest.cloud | Should -Be 'usgov'

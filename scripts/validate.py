@@ -150,6 +150,20 @@ def validate_settings_catalog_profile(data: Any, rel_path: Path) -> list[str]:
         errs.append(
             f"{rel_path}: 'complianceProfile' must be one of standard, itar-cui"
         )
+    if "targetFilters" in data:
+        tf = data["targetFilters"]
+        filters_dir = ROOT / "profiles" / "filters"
+        available_filters = {p.stem for p in filters_dir.glob("*.json")} if filters_dir.is_dir() else set()
+        if not isinstance(tf, list) or not tf:
+            errs.append(f"{rel_path}: 'targetFilters' must be a non-empty list of filter names")
+        else:
+            for item in tf:
+                if not isinstance(item, str) or not item.strip():
+                    errs.append(f"{rel_path}: 'targetFilters' items must be non-empty strings")
+                elif item not in available_filters:
+                    errs.append(f"{rel_path}: unknown assignment filter '{item}' in 'targetFilters'")
+                elif item == "physical-desktop":
+                    errs.append(f"{rel_path}: 'targetFilters' must not target 'physical-desktop'")
     if "settings" in data:
         if not isinstance(data["settings"], list) or not data["settings"]:
             errs.append(f"{rel_path}: 'settings' must be a non-empty list")

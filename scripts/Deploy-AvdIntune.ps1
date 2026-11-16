@@ -87,6 +87,44 @@ function Get-StampedName {
     return "$StampPrefix $RawName"
 }
 
+function New-GroupAssignmentPayload {
+    param(
+        [Parameter(Mandatory)][object]$PolicyObject,
+        [Parameter(Mandatory)][string]$TargetGroupId,
+        [Parameter(Mandatory)][System.Collections.IDictionary]$AssignmentFilterMap
+    )
+    $requestedFilters = @('avd-multisession')
+    if ($null -ne $PolicyObject.PSObject.Properties['targetFilters'] -and $null -ne $PolicyObject.targetFilters) {
+        $requestedFilters = @($PolicyObject.targetFilters | ForEach-Object { [string]$_ })
+    }
+    $assignments = @()
+    foreach ($filterKey in $requestedFilters) {
+        if ($AssignmentFilterMap.Contains($filterKey)) {
+            $assignments += [ordered]@{
+                target = [ordered]@{
+                    '@odata.type'                              = '#microsoft.graph.groupAssignmentTarget'
+                    groupId                                    = $TargetGroupId
+                    deviceAndAppManagementAssignmentFilterId   = [string]$AssignmentFilterMap[$filterKey]
+                    deviceAndAppManagementAssignmentFilterType = 'include'
+                }
+            }
+        }
+    }
+    if ($assignments.Count -eq 0) {
+        $assignments = @(
+            [ordered]@{
+                target = [ordered]@{
+                    '@odata.type' = '#microsoft.graph.groupAssignmentTarget'
+                    groupId       = $TargetGroupId
+                }
+            }
+        )
+    }
+    return [ordered]@{
+        assignments = $assignments
+    }
+}
+
 function ConvertTo-GraphSettingInstance {
     param(
         [Parameter(Mandatory)][object]$SettingNode
@@ -564,21 +602,7 @@ foreach ($profileFile in $settingsCatalogFiles) {
         $wasCreated = $true
     }
 
-    $targetSpec = [ordered]@{
-        '@odata.type' = '#microsoft.graph.groupAssignmentTarget'
-        groupId       = $targetDeviceGroupId
-    }
-    if ($assignmentFilterMap.Contains('avd-multisession')) {
-        $targetSpec['deviceAndAppManagementAssignmentFilterId'] = [string]$assignmentFilterMap['avd-multisession']
-        $targetSpec['deviceAndAppManagementAssignmentFilterType'] = 'include'
-    }
-    $assignPayload = [ordered]@{
-        assignments = @(
-            [ordered]@{
-                target = $targetSpec
-            }
-        )
-    }
+    $assignPayload = New-GroupAssignmentPayload -PolicyObject $profileObj -TargetGroupId $targetDeviceGroupId -AssignmentFilterMap $assignmentFilterMap
     $assignUri = "$graphBaseUri/beta/deviceManagement/configurationPolicies/$policyId/assign"
     $null = Invoke-GraphRequest -Method 'POST' -Uri $assignUri -Body $assignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 
@@ -628,21 +652,7 @@ foreach ($compFile in $complianceFiles) {
         $wasCreated = $true
     }
 
-    $targetSpec = [ordered]@{
-        '@odata.type' = '#microsoft.graph.groupAssignmentTarget'
-        groupId       = $targetDeviceGroupId
-    }
-    if ($assignmentFilterMap.Contains('avd-multisession')) {
-        $targetSpec['deviceAndAppManagementAssignmentFilterId'] = [string]$assignmentFilterMap['avd-multisession']
-        $targetSpec['deviceAndAppManagementAssignmentFilterType'] = 'include'
-    }
-    $assignPayload = [ordered]@{
-        assignments = @(
-            [ordered]@{
-                target = $targetSpec
-            }
-        )
-    }
+    $assignPayload = New-GroupAssignmentPayload -PolicyObject $compObj -TargetGroupId $targetDeviceGroupId -AssignmentFilterMap $assignmentFilterMap
     $assignUri = "$graphBaseUri/beta/deviceManagement/deviceCompliancePolicies/$compPolicyId/assign"
     $null = Invoke-GraphRequest -Method 'POST' -Uri $assignUri -Body $assignPayload -IsDryRun $isDryRun -CustomInvoker $GraphInvoker -GraphResource $graphBaseUri
 

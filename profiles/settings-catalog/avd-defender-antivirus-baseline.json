@@ -1,0 +1,69 @@
+{
+  "name": "[avd-ops] AVD & Cloud PC Defender Antivirus Baseline",
+  "description": "Declarative Settings Catalog Microsoft Defender Antivirus baseline for AVD session hosts and Windows 365 Cloud PCs, tuned for multi-session VDI CPU/IO efficiency and passive-mode coexistence when a third-party AV is active (avd-assess agents.coexistence, security.endpoint-protection-tuning).",
+  "platforms": "windows10",
+  "technologies": "mdm",
+  "targetFilters": [
+    "avd-multisession",
+    "avd-personal",
+    "win365-cloudpc"
+  ],
+  "settings": [
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_allowrealtimemonitoring",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_allowbehaviormonitoring",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_allowcloudprotection",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_allowioavprotection",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_allowscriptscanning",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_enablenetworkprotection",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_puaprotection",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_submitsamplesconsent",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_avgcpuloadfactor",
+      "value": 25
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_enablelowcpupriority",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_disablecatchupquickscan",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_disablecatchupfullscan",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_randomizescheduledtasktimes",
+      "value": 1
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_defender_signatureupdateinterval",
+      "value": 8
+    }
+  ]
+}
