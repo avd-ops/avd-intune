@@ -1,0 +1,36 @@
+{
+  "name": "[avd-ops] Persistent Host & Cloud PC Winget-AutoUpdate (WAU)",
+  "description": "Declarative Winget-AutoUpdate (MIT) configuration for persistent personal AVD hosts and Windows 365 Cloud PCs. Excluded from pooled multi-session hosts, which update via Evergreen golden image builds.",
+  "upstream": {
+    "name": "Winget-AutoUpdate",
+    "url": "https://github.com/Romanitho/Winget-AutoUpdate",
+    "license": "MIT"
+  },
+  "targetFilters": [
+    "avd-personal",
+    "win365-cloudpc"
+  ],
+  "excludedFilters": [
+    "avd-multisession"
+  ],
+  "psadtInterop": {
+    "license": "LGPL-2.1",
+    "upstreamUrl": "https://github.com/PSAppDeployToolkit/PSAppDeployToolkit",
+    "mode": "invoke-only",
+    "note": "Operators may wrap custom LOB apps with user-supplied PSADT v4 packages (Invoke-AppDeployToolkit.exe / Deploy-Application.exe) without bundling LGPL-2.1 code into avd-intune."
+  },
+  "apps": [
+    {
+      "id": "winget-autoupdate",
+      "displayName": "Winget-AutoUpdate (WAU)",
+      "upstreamRepo": "Romanitho/Winget-AutoUpdate",
+      "license": "MIT",
+      "installContext": "system",
+      "intent": "required",
+      "targetType": "deviceGroup",
+      "updatesInterval": "Daily",
+      "notificationLevel": "SuccessOnly",
+      "userContextFallback": false
+    }
+  ]
+}
