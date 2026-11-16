@@ -82,22 +82,6 @@
               },
               {
                 "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
-                "settingDefinitionId": "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockprocesscreationsoriginatingfrompsexecandwmicommands",
-                "choiceSettingValue": {
-                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingValue",
-                  "value": "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockprocesscreationsoriginatingfrompsexecandwmicommands_audit"
-                }
-              },
-              {
-                "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
-                "settingDefinitionId": "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuntrustedandunsignedprocessesthatrunfromusb",
-                "choiceSettingValue": {
-                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingValue",
-                  "value": "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuntrustedandunsignedprocessesthatrunfromusb_block"
-                }
-              },
-              {
-                "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
                 "settingDefinitionId": "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_useadvancedprotectionagainstransomware",
                 "choiceSettingValue": {
                   "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingValue",
