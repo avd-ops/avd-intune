@@ -99,14 +99,35 @@ function New-GroupAssignmentPayload {
     if ($null -ne $PolicyObject.PSObject.Properties['targetFilters'] -and $null -ne $PolicyObject.targetFilters) {
         $requestedFilters = @($PolicyObject.targetFilters | ForEach-Object { [string]$_ })
     }
+    $matchedFilters = @($requestedFilters | Where-Object { $AssignmentFilterMap.Contains($_) })
     $assignments = @()
-    foreach ($filterKey in $requestedFilters) {
-        if ($AssignmentFilterMap.Contains($filterKey)) {
+    if ($matchedFilters.Count -eq 1) {
+        $assignments += [ordered]@{
+            target = [ordered]@{
+                '@odata.type'                              = '#microsoft.graph.groupAssignmentTarget'
+                groupId                                    = $TargetGroupId
+                deviceAndAppManagementAssignmentFilterId   = [string]$AssignmentFilterMap[$matchedFilters[0]]
+                deviceAndAppManagementAssignmentFilterType = 'include'
+            }
+        }
+    } elseif ($matchedFilters.Count -gt 1) {
+        # Intune /assign rejects duplicate groupId entries in assignments. When multiple VDI filters
+        # are requested on one group, exclude physical-desktop if present, else include the primary filter.
+        if ($AssignmentFilterMap.Contains('physical-desktop') -and ($matchedFilters -notcontains 'physical-desktop')) {
             $assignments += [ordered]@{
                 target = [ordered]@{
                     '@odata.type'                              = '#microsoft.graph.groupAssignmentTarget'
                     groupId                                    = $TargetGroupId
-                    deviceAndAppManagementAssignmentFilterId   = [string]$AssignmentFilterMap[$filterKey]
+                    deviceAndAppManagementAssignmentFilterId   = [string]$AssignmentFilterMap['physical-desktop']
+                    deviceAndAppManagementAssignmentFilterType = 'exclude'
+                }
+            }
+        } else {
+            $assignments += [ordered]@{
+                target = [ordered]@{
+                    '@odata.type'                              = '#microsoft.graph.groupAssignmentTarget'
+                    groupId                                    = $TargetGroupId
+                    deviceAndAppManagementAssignmentFilterId   = [string]$AssignmentFilterMap[$matchedFilters[0]]
                     deviceAndAppManagementAssignmentFilterType = 'include'
                 }
             }
