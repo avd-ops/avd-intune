@@ -48,6 +48,9 @@ $useLiveModules = $false
 if (-not $DryRun.IsPresent -and $null -eq $AppResolver) {
     if ($null -ne (Get-Module -ListAvailable -Name 'Evergreen')) {
         Import-Module Evergreen -ErrorAction Stop
+        if ($null -ne (Get-Command -Name 'Update-Evergreen' -ErrorAction SilentlyContinue)) {
+            Update-Evergreen | Out-Null
+        }
         $useLiveModules = $true
     } else {
         throw "PowerShell module 'Evergreen' (EUCPilots/evergreen-module) is not installed. Install with: Install-Module Evergreen -Scope CurrentUser (or pass -DryRun)."
