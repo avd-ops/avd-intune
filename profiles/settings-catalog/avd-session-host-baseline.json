@@ -9,18 +9,18 @@
       "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_disconnected_timeout_2_1",
       "children": [
         {
-          "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_disconnected_timeout_2_ts_disconnected",
-          "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_disconnected_timeout_2_ts_disconnected_7200000"
+          "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_disconnected_timeout_2_ts_sessions_enddisconnected",
+          "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_disconnected_timeout_2_ts_sessions_enddisconnected_7200000"
         }
       ]
     },
     {
-      "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_timeout_2",
-      "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_timeout_2_1",
+      "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_limit_2",
+      "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_limit_2_1",
       "children": [
         {
-          "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_timeout_2_ts_idle",
-          "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_timeout_2_ts_idle_3600000"
+          "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_limit_2_ts_sessions_idlelimittext",
+          "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_sessions_idle_limit_2_ts_sessions_idlelimittext_3600000"
         }
       ]
     },
