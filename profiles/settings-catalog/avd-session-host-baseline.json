@@ -31,6 +31,10 @@
     {
       "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_client_turn_off_udp",
       "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_client_turn_off_udp_0"
+    },
+    {
+      "settingId": "device_vendor_msft_policy_config_admx_terminalserver_ts_time_zone",
+      "value": "device_vendor_msft_policy_config_admx_terminalserver_ts_time_zone_1"
     }
   ]
 }
